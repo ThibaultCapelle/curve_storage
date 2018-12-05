@@ -1,4 +1,5 @@
-import os, json
+import os, json, time
+from datetime import datetime
 '''
 class CURVE:
 
@@ -39,9 +40,38 @@ class database:
         with open(self.database_location, 'r') as f:
             data=json.load(f)
         assert str(id) in data.keys()
-        return data[str(id)]
+        path = time.strftime("%Y\%M\%d",time.gmtime(data[str(id)]))
+        return os.path.join(self.data_location,path)
 
-    def 
+    def get_last_id(self):
+        with open(self.database_location, 'r') as f:
+            data=json.load(f)
+        result = 1
+        for k in data.keys():
+            if int(k)>result:
+                result=int(k)
+        return result
+
+    def new_id(self):
+        new_id = self.get_last_id()+1
+        new_time = time.time()
+        with open(self.database_location, 'r') as f:
+            data=json.load(f)
+        data.update({new_id:new_time})
+        with open(self.database_location, 'w') as f:
+            json.load(data, f)
+        d = datetime.fromtimestamp(new_time)
+        os.chdir(self.data_location)
+        if not str(d.year()) in os.listdir():
+            os.mkdir(str(d.year()))
+            os.chdir(str(d.year()))
+        if not str(d.month()) in os.listdir():
+            os.mkdir(str(d.month()))
+            os.chdir(str(d.month()))
+        if not str(d.day()) in os.listdir():
+            os.mkdir(str(d.day()))
+
+
 
 
 
