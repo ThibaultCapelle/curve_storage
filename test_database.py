@@ -1,0 +1,101 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Dec  6 11:17:28 2018
+
+@author: Thibault
+"""
+
+from curve_storage.database import Curve, DataBase
+import numpy as np
+import os, sys, json, shutil
+
+database_path = os.path.join(os.environ['HOMEPATH'],'.database')
+data_path = r'C:\Users\Thibault\Documents\phd\python\Database_test'
+
+import unittest
+
+class TestStringMethods(unittest.TestCase):
+
+    def test_database_creation(self):
+        for file in os.listdir(data_path):
+            shutil.rmtree(os.path.join(data_path, file), ignore_errors=True)
+        
+        database_fullpath = os.path.join(database_path, 'database.json')
+        if os.path.exists(database_fullpath):
+            os.remove(os.path.join(database_path, 'database.json'))
+        curve = Curve([0,1,2,3], [0,2,2,2], name='bonjour')
+        self.assertTrue(os.path.exists(curve.database.get_or_create_database()))
+        self.assertTrue(os.path.exists(curve.directory))
+        self.assertEqual(len(os.listdir(curve.directory)),1)
+        self.assertEqual(curve.id,1)
+        self.assertEqual(curve.name,'bonjour')
+    
+    def test_adding_curves(self):
+        for file in os.listdir(data_path):
+            shutil.rmtree(os.path.join(data_path, file), ignore_errors=True)
+        
+        database_fullpath = os.path.join(database_path, 'database.json')
+        if os.path.exists(database_fullpath):
+            os.remove(os.path.join(database_path, 'database.json'))
+        curve = Curve([0,1,2,3], [0,2,2,2], name='bonjour')
+        self.assertEqual(len(curve.database.get_data().keys()),1)
+        self.assertEqual(curve.id,1)
+        curve = Curve([0,1,2,3], [0,2,2,2], name='bonjour')
+        self.assertEqual(len(curve.database.get_data().keys()),2)
+        self.assertEqual(curve.id,2)
+    
+    def test_retrieving_data(self):
+        curve_1=Curve([0,1,2,3], [0,2,2,2], name='bonjour')
+        curve_2=DataBase().get_curve(curve_1.id)
+        self.assertEqual(curve_1.id, curve_2.id)
+        self.assertEqual(curve_1.id, curve_1.parent)
+        self.assertEqual(curve_1.name, curve_2.name)
+        self.assertEqual(curve_1.parent, curve_2.parent)
+        self.assertFalse((curve_1.x-curve_2.x).any())
+        self.assertFalse((curve_1.y-curve_2.y).any())
+    
+    def test_hierarchy(self):
+        curve_1=Curve([0,1,2,3], [0,2,2,2], name='bonjour')
+        self.assertEqual(curve_1.id, curve_1.parent)
+        curve_2=Curve([0,1,2,3], [0,2,2,2], name='fiston')
+        self.assertEqual(curve_2.id, curve_2.parent)
+        curve_2.move(curve_1)
+        self.assertEqual(curve_2.parent, curve_1.id)
+        self.assertTrue(curve_2.id in curve_1.childs)
+    
+    def test_parameter_modification(self):
+        curve_1=Curve([0,1,2,3], [0,2,2,2], name='bonjour')
+        size_1 = len(curve_1.database.get_data().keys())
+        curve_1.params['foo']=25
+        curve_1.save()
+        size_2 = len(curve_1.database.get_data().keys())
+        self.assertEqual(size_1, size_2)
+        curve_2=DataBase().get_curve(curve_1.id)
+        self.assertEqual(curve_2.params['foo'], 25)
+    
+    def test_datashape_errors(self):
+        with self.assertRaises(TypeError):
+            Curve([0,0],[1,1],[2,2])
+        with self.assertRaises(TypeError):
+            Curve([0,0,0],[1])
+    
+    def test_curve_directory(self):
+        curve_1=Curve([0,1,2,3], [0,2,2,2])
+        directory = curve_1.get_or_create_dir()
+        self.assertTrue(os.path.exists(directory))
+    
+    def test_curve_removal(self):
+        curve_1=Curve([0,1,2,3], [0,2,2,2])
+        curve_1.delete()
+        self.assertTrue('{:}.h5'.format(curve_1.id) not in os.listdir(curve_1.directory))
+
+if __name__ == '__main__':
+    unittest.main()
+'''
+for file in os.listdir(data_path):
+    shutil.rmtree(os.path.join(data_path, file), ignore_errors=True)
+
+database_fullpath = os.path.join(database_path, 'database.json')
+if os.path.exists(database_fullpath):
+    os.remove(os.path.join(database_path, 'database.json'))
+curve = Curve([0,1,2,3], [0,2,2,2], name='bonjour')'''
