@@ -34,6 +34,8 @@ class WindowWidget(QWidget):
         self.layout_left.addLayout(self.layout_show_first)
         self.spinbox_widget = SpinBoxWidget()
         self.table_widget = TableWidget(self.layout)
+        self.param_widget = ParamWidget(self.layout)
+        self.layout_global.addWidget(self.param_widget)
         self.show_first_label = QLabel('show first')
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.table_widget)
@@ -41,13 +43,15 @@ class WindowWidget(QWidget):
         self.layout_right.addWidget(self.plot_widget)
         self.spinbox_changed.connect(self.table_widget.recompute_table)
         self.row_changed.connect(self.plot_widget.plot)
+        self.row_changed.connect(self.param_widget.actualize)
         self.database_changed.fileChanged.connect(self.table_widget.recompute_table)
         self.spinbox_widget.setValue(20)
         self.setLayout(self.layout_global)
         self.setGeometry(QRect(0, 0, 1000, 600))
-        self.setMaximumHeight(700)
+        self.setMaximumHeight(600)
         self.table_widget.recompute_table(first_use=True)
         self.show()
+        self.move(0,0)
         
     
     def recompute_dimensions(self):
@@ -63,7 +67,31 @@ class WindowWidget(QWidget):
                          self._width,
                          self._height))
         
-
+class ParamWidget(QTableWidget):
+    
+    def __init__(self, layout):
+        super().__init__()
+        self.layout=layout
+        self.setColumnCount(2)
+        self.setHorizontalHeaderLabels(['Param', 'Value'])
+        self.verticalHeader().setVisible(False)
+        self.setMaximumWidth(300)
+    
+    def actualize(self):
+        row = self.window().table_widget.active_row
+        curve_id = int(self.window().table_widget.item(row, 0).text())
+        curve = DataBase().get_curve(curve_id)
+        self.clear()
+        self.setHorizontalHeaderLabels(['Param', 'Value'])
+        self.setRowCount(len(curve.params.keys()))
+        for i,(k, v) in enumerate(curve.params.items()):
+            key = QTableWidgetItem()
+            key.setText(k)
+            self.setItem(i,0,key)
+            value = QTableWidgetItem()
+            value.setText(str(v))
+            self.setItem(i,1,value)
+            
         
 class TableWidget(QTableWidget):
     
