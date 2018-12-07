@@ -50,6 +50,7 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(curve_1.id, curve_2.id)
         self.assertEqual(curve_1.id, curve_1.parent)
         self.assertEqual(curve_1.name, curve_2.name)
+        self.assertEqual(curve_1.date, curve_2.date)
         self.assertEqual(curve_1.parent, curve_2.parent)
         self.assertFalse((curve_1.x-curve_2.x).any())
         self.assertFalse((curve_1.y-curve_2.y).any())
@@ -88,6 +89,7 @@ class TestStringMethods(unittest.TestCase):
         curve_1=Curve([0,1,2,3], [0,2,2,2])
         curve_1.delete()
         self.assertTrue('{:}.h5'.format(curve_1.id) not in os.listdir(curve_1.directory))
+        self.assertFalse(str(curve_1.id) in curve_1.database.get_data().keys())
 
 if __name__ == '__main__':
     unittest.main()

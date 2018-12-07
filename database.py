@@ -38,6 +38,13 @@ class DataBase:
                 json.dump(dict(), f)
             return os.path.join(os.getcwd(), 'database.json')
         
+    def equalize_with_data(self):
+        data = self.get_data()
+        for k in data.keys():
+            path = self.get_folder_from_id(k)
+            if (not '{:}.h5'.format(k) in os.listdir(path)) or (not os.path.exists(path)):
+                self.remove(k)
+
     def get_time_from_id(self, id):
         data = self.get_data()
         assert str(id) in data.keys()
@@ -64,6 +71,7 @@ class DataBase:
     
     def get_curve(self, curve_id):
         path = self.get_folder_from_id(curve_id)
+        t = self.get_time_from_id(curve_id)
         assert '{:}.h5'.format(curve_id) in os.listdir(path)
         with h5py.File(os.path.join(path,'{:}.h5'.format(curve_id)), 'r') as f:
             data=f['data'].value
