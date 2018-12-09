@@ -45,6 +45,7 @@ class WindowWidget(QWidget):
         self.spinbox_changed.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
         self.row_changed.connect(self.param_widget.actualize)
+        self.database_changed.fileChanged.connect(self.tree_widget.compute)
         self.spinbox_widget.setValue(20)
         self.setLayout(self.layout_global)
         self.setGeometry(QRect(0, 0, 1000, 600))
@@ -89,6 +90,7 @@ class TreeWidget(QTreeWidget):
             self.setColumnWidth(i,50)
         self.currentItemChanged.connect(self.current_item_changed)
         self.compute(first_use=True)
+        self.itemActivated.connect(self.compute)
         
         
     def current_item_changed(self, item, previous_item):
@@ -96,29 +98,30 @@ class TreeWidget(QTreeWidget):
         self.window().row_changed.emit()
 
     def compute(self, first_use=False):
-        self.clear()
         if first_use:
             new_size=20
         else:
             new_size = self.window().spinbox_widget.current_value
         if new_size!=self.length or first_use:
+            self.clear()
             data = DataBase().get_data()
             i=0
             keys = list(data.keys())
             N=len(keys)
             while(self.topLevelItemCount()<new_size):
                 key = keys[N-i-1]
-                value = data[key]
-                curve = DataBase().get_curve(key)
-                if str(curve.parent)==curve.id:
-                    data.pop(key)
-                    item=QTreeWidgetItem()
-                    item.setData(0,0,key)
-                    item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(value)))
-                    item.setData(1,0, curve.name) 
-                    self.addTopLevelItem(item)
-                    for child in curve.childs:
-                        data = self.add_child(item, data, child)  
+                if key in data.keys():
+                    value = data[key]
+                    curve = DataBase().get_curve(key)
+                    if str(curve.parent)==curve.id:
+                        data.pop(key)
+                        item=QTreeWidgetItem()
+                        item.setData(0,0,key)
+                        item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(value)))
+                        item.setData(1,0, curve.name) 
+                        self.addTopLevelItem(item)
+                        for child in curve.childs:
+                            data = self.add_child(item, data, child)  
                 i=i+1
             self.sortItems(2,QtCore.Qt.DescendingOrder)
             
@@ -127,7 +130,7 @@ class TreeWidget(QTreeWidget):
         child = DataBase().get_curve(child)
         t = data.pop(str(child.id))
         child_item=QTreeWidgetItem()
-        child_item.setData(0,0,child.id)
+        child_item.setData(0,0,str(child.id))
         child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(t)))
         child_item.setData(1,0, child.name)
         item.addChild(child_item)

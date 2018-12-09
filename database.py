@@ -79,7 +79,7 @@ class DataBase:
             params=dict()
             for k,v in params_stored.items():
                 params[k]=v.value
-            childs = f['childs'].value
+            childs = list(f['childs'].value)
             parent = f['parent'].value
             name = f['name'].value
         curve = Curve(curve_id)
@@ -146,7 +146,7 @@ class Curve:
             else:
                 self.name=""
             self.params = kwargs
-            self.childs = []
+            self.childs = list([])
             self.parent = self.id
             self.save()
         else:
