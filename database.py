@@ -134,11 +134,8 @@ class Curve:
             self.directory = self.database.get_folder_from_id(self.id)
             self.date = self.database.get_time_from_id(self.id)
         elif  len(args)==2:
-            self.id=self.database.new_id()
-            self.directory = self.database.get_folder_from_id(self.id)
-            self.date = self.database.get_time_from_id(self.id)
             if len(args[0])!=len(args[1]):
-                raise(TypeError, "The format of the input is wrong")
+                    raise(TypeError, "The format of the input is wrong")
             self.x = np.array(args[0])
             self.y = np.array(args[1])
             if 'name' in kwargs:
@@ -147,8 +144,12 @@ class Curve:
                 self.name=""
             self.params = kwargs
             self.childs = list([])
-            self.parent = self.id
-            self.save()
+            if 'not_saved' not in kwargs.keys() or kwargs['not_saved'] is False:
+                self.id=self.database.new_id()
+                self.directory = self.database.get_folder_from_id(self.id)
+                self.date = self.database.get_time_from_id(self.id)
+                self.parent = self.id
+                self.save()
         else:
             raise(TypeError, "The format of the input is wrong")
         
@@ -163,6 +164,7 @@ class Curve:
             f.create_dataset('name', data=self.name)
     
     def move(self, curve_parent):
+        assert curve_parent.id not in self.childs
         self.parent = curve_parent.id
         curve_parent.childs.append(self.id)
         self.save()

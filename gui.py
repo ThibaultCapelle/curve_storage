@@ -135,7 +135,7 @@ class TreeWidget(QTreeWidget):
         child_item.setData(1,0, child.name)
         item.addChild(child_item)
         for grandchild in child.childs:
-            data = self.add_child(child, data, grandchild)
+            data = self.add_child(child_item, data, grandchild)
         return data
         
 
