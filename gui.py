@@ -108,33 +108,34 @@ class TreeWidget(QTreeWidget):
             i=0
             keys = list(data.keys())
             N=len(keys)
-            while(self.topLevelItemCount()<new_size):
+            new_size=np.min([N,new_size])
+            while(self.topLevelItemCount()<new_size and i<N):
                 key = keys[N-i-1]
                 if key in data.keys():
-                    value = data[key]
-                    curve = DataBase().get_curve(key)
-                    if str(curve.parent)==curve.id:
+                    curve_data = data[key]
+                    #curve = DataBase().get_curve(key, retrieve_data=False)
+                    if str(curve_data['parent'])==key:
                         data.pop(key)
                         item=QTreeWidgetItem()
                         item.setData(0,0,key)
-                        item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(value)))
-                        item.setData(1,0, curve.name) 
+                        item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(curve_data['time'])))
+                        item.setData(1,0, curve_data['name']) 
                         self.addTopLevelItem(item)
-                        for child in curve.childs:
+                        for child in curve_data['childs']:
                             data = self.add_child(item, data, child)  
                 i=i+1
             self.sortItems(2,QtCore.Qt.DescendingOrder)
             
         
     def add_child(self, item, data, child):
-        child = DataBase().get_curve(child)
-        t = data.pop(str(child.id))
+        #child = DataBase().get_curve(child)
+        child_data = data.pop(str(child))
         child_item=QTreeWidgetItem()
-        child_item.setData(0,0,str(child.id))
-        child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(t)))
-        child_item.setData(1,0, child.name)
+        child_item.setData(0,0,str(child))
+        child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(child_data['time'])))
+        child_item.setData(1,0, child_data['name'])
         item.addChild(child_item)
-        for grandchild in child.childs:
+        for grandchild in child_data['childs']:
             data = self.add_child(child_item, data, grandchild)
         return data
         
