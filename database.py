@@ -48,7 +48,7 @@ class DataBase:
     def get_time_from_id(self, id):
         data = self.get_data()
         assert str(id) in data.keys()
-        return data[str(id)]
+        return data[str(id)]['time']
 
     def get_folder_from_id(self, id):
         t = self.get_time_from_id(id)
@@ -69,30 +69,44 @@ class DataBase:
                 result=int(k)
         return result
     
+    def get_whole_params_from_id(self, curve_id):
+        data = self.get_data()
+        assert str(curve_id) in data.keys()
+        return data[str(curve_id)]
+        
+    
     def get_curve(self, curve_id):
         path = self.get_folder_from_id(curve_id)
-        t = self.get_time_from_id(curve_id)
+        curve_params = self.get_whole_params_from_id(curve_id)
+        t = curve_params['time']
+        name = curve_params['name']
+        params = curve_params['params']
+        childs = curve_params['childs']
+        parent = curve_params['parent']
+        #t = self.get_time_from_id(curve_id)
         assert '{:}.h5'.format(curve_id) in os.listdir(path)
         with h5py.File(os.path.join(path,'{:}.h5'.format(curve_id)), 'r') as f:
             data=f['data'].value
+            '''
             params_stored = f['params']
             params=dict()
             for k,v in params_stored.items():
                 params[k]=v.value
             childs = list(f['childs'].value)
             parent = f['parent'].value
-            name = f['name'].value
+            name = f['name'].value'''
         curve = Curve(curve_id)
-        if 'name' in params.keys():
-            curve.name=params['name']
-        else:
-            curve.name=""
+        #if 'name' in params.keys():
+        #    curve.name=params['name']
+        #else:
+        #    curve.name=""
         curve.x=data[0]
         curve.y=data[1]
         curve.childs = childs
         curve.parent=parent
         curve.params=params
         curve.name=name
+        curve.time=t
         return curve
             
     def new_id(self):
@@ -100,7 +114,8 @@ class DataBase:
         new_time = time.time()
         with open(self.database_location, 'r') as f:
             data=json.load(f)
-        data.update({new_id:new_time})
+        curve_data = dict(time=new_time)
+        data.update({new_id:curve_data})
         with open(self.database_location, 'w') as f:
             json.dump(data, f)
         d = datetime.fromtimestamp(new_time)
@@ -144,24 +159,44 @@ class Curve:
                 self.name=""
             self.params = kwargs
             self.childs = list([])
+            self.id=None
+            self.parent=None
             if 'not_saved' not in kwargs.keys() or kwargs['not_saved'] is False:
-                self.id=self.database.new_id()
-                self.directory = self.database.get_folder_from_id(self.id)
-                self.date = self.database.get_time_from_id(self.id)
-                self.parent = self.id
+                #self.id=self.database.new_id()
+                #self.directory = self.database.get_folder_from_id(self.id)
+                #self.date = self.database.get_time_from_id(self.id)
+                #self.parent = self.id
                 self.save()
         else:
             raise(TypeError, "The format of the input is wrong")
         
     def save(self):
+        if self.id is None:
+            self.id=self.database.new_id()
+            self.directory = self.database.get_folder_from_id(self.id)
+            self.date = self.database.get_time_from_id(self.id)
+            self.parent = self.id
+        self.update_database()
         with h5py.File(os.path.join(self.directory, '{:}.h5'.format(self.id)), 'w') as f:
             f.create_dataset('data', data=np.vstack((self.x, self.y)))
+            '''
             params = f.create_group('params')
             for k, v in self.params.items():
                 params[k]=v
             f.create_dataset('childs', data=self.childs)
             f.create_dataset('parent', data=self.parent)
-            f.create_dataset('name', data=self.name)
+            f.create_dataset('name', data=self.name)'''
+    
+    def update_database(self):
+        data=self.database.get_data()
+        curve_data = dict(time=self.date,
+                          name=self.name,
+                          childs=self.childs,
+                          parent=self.parent,
+                          params=self.params)
+        data[str(self.id)]=curve_data
+        with open(self.database.database_location, 'w') as f:
+            data=json.dump(data, f)
     
     def move(self, curve_parent):
         assert curve_parent.id not in self.childs
