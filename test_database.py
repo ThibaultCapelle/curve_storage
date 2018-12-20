@@ -5,7 +5,7 @@ Created on Thu Dec  6 11:17:28 2018
 @author: Thibault
 """
 
-from curve_storage.database import Curve, DataBase
+from curve_storage.database import Curve, SQLDatabase
 import numpy as np
 import os, sys, json, shutil
 
@@ -19,12 +19,11 @@ class TestStringMethods(unittest.TestCase):
     def test_database_creation(self):
         for file in os.listdir(data_path):
             shutil.rmtree(os.path.join(data_path, file), ignore_errors=True)
-        
-        database_fullpath = os.path.join(database_path, 'database.json')
+        database_fullpath = os.path.join(database_path, 'database.db')
         if os.path.exists(database_fullpath):
-            os.remove(os.path.join(database_path, 'database.json'))
+            os.remove(os.path.join(database_path, 'database.db'))
         curve = Curve([0,1,2,3], [0,2,2,2], name='bonjour')
-        self.assertTrue(os.path.exists(curve.database.get_or_create_database()))
+        self.assertTrue(os.path.exists(database_fullpath))
         self.assertTrue(os.path.exists(curve.directory))
         self.assertEqual(len(os.listdir(curve.directory)),1)
         self.assertEqual(curve.id,1)
@@ -33,20 +32,19 @@ class TestStringMethods(unittest.TestCase):
     def test_adding_curves(self):
         for file in os.listdir(data_path):
             shutil.rmtree(os.path.join(data_path, file), ignore_errors=True)
-        
-        database_fullpath = os.path.join(database_path, 'database.json')
+        database_fullpath = os.path.join(database_path, 'database.db')
         if os.path.exists(database_fullpath):
-            os.remove(os.path.join(database_path, 'database.json'))
+            os.remove(os.path.join(database_path, 'database.db'))
         curve = Curve([0,1,2,3], [0,2,2,2], name='bonjour')
-        self.assertEqual(len(curve.database.get_data().keys()),1)
+        self.assertEqual(curve.database.get_n_keys(),1)
         self.assertEqual(curve.id,1)
         curve = Curve([0,1,2,3], [0,2,2,2], name='bonjour')
-        self.assertEqual(len(curve.database.get_data().keys()),2)
+        self.assertEqual(curve.database.get_n_keys(),2)
         self.assertEqual(curve.id,2)
     
     def test_retrieving_data(self):
         curve_1=Curve([0,1,2,3], [0,2,2,2], name='bonjour')
-        curve_2=DataBase().get_curve(curve_1.id)
+        curve_2=curve_1.database.get_curve(curve_1.id)
         self.assertEqual(curve_1.id, curve_2.id)
         self.assertEqual(curve_1.id, curve_1.parent)
         self.assertEqual(curve_1.name, curve_2.name)
@@ -66,12 +64,12 @@ class TestStringMethods(unittest.TestCase):
     
     def test_parameter_modification(self):
         curve_1=Curve([0,1,2,3], [0,2,2,2], name='bonjour')
-        size_1 = len(curve_1.database.get_data().keys())
+        size_1 = curve_1.database.get_n_keys()
         curve_1.params['foo']=25
         curve_1.save()
-        size_2 = len(curve_1.database.get_data().keys())
+        size_2 = curve_1.database.get_n_keys()
         self.assertEqual(size_1, size_2)
-        curve_2=DataBase().get_curve(curve_1.id)
+        curve_2= curve_1.database.get_curve(curve_1.id)
         self.assertEqual(curve_2.params['foo'], 25)
     
     def test_datashape_errors(self):
@@ -84,15 +82,19 @@ class TestStringMethods(unittest.TestCase):
         curve_1=Curve([0,1,2,3], [0,2,2,2])
         directory = curve_1.get_or_create_dir()
         self.assertTrue(os.path.exists(directory))
+        self.assertTrue(curve_1.database.exists(curve_1.id))
     
     def test_curve_removal(self):
         curve_1=Curve([0,1,2,3], [0,2,2,2])
+        self.assertTrue(curve_1.database.exists(curve_1.id))
         curve_1.delete()
         self.assertTrue('{:}.h5'.format(curve_1.id) not in os.listdir(curve_1.directory))
-        self.assertFalse(str(curve_1.id) in curve_1.database.get_data().keys())
+        self.assertFalse(curve_1.database.exists(curve_1.id))
 
 if __name__ == '__main__':
     unittest.main()
+    #suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)
+    #unittest.TextTestRunner(verbosity=2).run(suite)
 '''
 for file in os.listdir(data_path):
     shutil.rmtree(os.path.join(data_path, file), ignore_errors=True)
