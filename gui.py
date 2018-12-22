@@ -107,7 +107,6 @@ class TreeWidget(QTreeWidget):
             self.clear()
             database=SQLDatabase()
             keys = database.get_all_ids()
-            print(keys)
             keys_temp = keys
             i=0
             #keys = list(data.keys())
@@ -118,10 +117,8 @@ class TreeWidget(QTreeWidget):
                 if key in keys_temp:
                     curve_data = database.get_curve_metadata(key)
                     name, date, childs, parent, params = curve_data
-                    print("name : {:}, date : {:}, childs : {:}, parent : {:}, params : {:}".format(name, date, childs, parent, params))
                     #curve = DataBase().get_curve(key, retrieve_data=False)
                     if parent==key:
-                        print("first level item, keys_temp:{:}".format(keys_temp))
                         keys_temp.remove(key)
                         item=QTreeWidgetItem()
                         item.setData(0,0,key)
