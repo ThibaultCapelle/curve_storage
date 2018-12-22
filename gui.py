@@ -12,15 +12,16 @@ QCheckBox, QTreeWidget, QTreeWidgetItem)
 from PyQt5.QtCore import QRect
 import PyQt5.QtCore as QtCore
 import sys, time, os
-from curve_storage.database import DataBase, Curve
+from curve_storage.database import Curve, SQLDatabase
 import pyqtgraph as pg
 import numpy as np
 
+N_ROW_DEFAULT=20
 
 class WindowWidget(QWidget):
     
     spinbox_changed = QtCore.Signal()
-    database_changed = QtCore.QFileSystemWatcher([DataBase().database_location])
+    database_changed = QtCore.QFileSystemWatcher([SQLDatabase.DATABASE_LOCATION])
     row_changed = QtCore.Signal()
     
     def __init__(self):
@@ -67,7 +68,7 @@ class ParamWidget(QTableWidget):
     def actualize(self):
         item = self.window().tree_widget.active_item
         curve_id = int(item.data(0,0))
-        curve = DataBase().get_curve(curve_id)
+        curve = SQLDatabase().get_curve(curve_id)
         self.clear()
         self.setHorizontalHeaderLabels(['Param', 'Value'])
         self.setRowCount(len(curve.params.keys()))
@@ -84,7 +85,7 @@ class TreeWidget(QTreeWidget):
     def __init__(self):
         super().__init__()
         self.setColumnCount(3)
-        self.length = np.min([len(data.keys()), 20])
+        self.length = np.min([SQLDatabase().get_n_keys(), N_ROW_DEFAULT])
         self.setHeaderLabels(['Id', 'Name', 'Date'])
         for i in range(3):
             self.setColumnWidth(i,50)
@@ -99,45 +100,52 @@ class TreeWidget(QTreeWidget):
 
     def compute(self, first_use=False):
         if first_use:
-            new_size=20
+            new_size=N_ROW_DEFAULT
         else:
             new_size = self.window().spinbox_widget.current_value
         if new_size!=self.length or first_use:
             self.clear()
-            data = DataBase().get_data()
+            database=SQLDatabase()
+            keys = database.get_all_ids()
+            print(keys)
+            keys_temp = keys
             i=0
-            keys = list(data.keys())
+            #keys = list(data.keys())
             N=len(keys)
             new_size=np.min([N,new_size])
             while(self.topLevelItemCount()<new_size and i<N):
                 key = keys[N-i-1]
-                if key in data.keys():
-                    curve_data = data[key]
+                if key in keys_temp:
+                    curve_data = database.get_curve_metadata(key)
+                    name, date, childs, parent, params = curve_data
+                    print("name : {:}, date : {:}, childs : {:}, parent : {:}, params : {:}".format(name, date, childs, parent, params))
                     #curve = DataBase().get_curve(key, retrieve_data=False)
-                    if str(curve_data['parent'])==key:
-                        data.pop(key)
+                    if parent==key:
+                        print("first level item, keys_temp:{:}".format(keys_temp))
+                        keys_temp.remove(key)
                         item=QTreeWidgetItem()
                         item.setData(0,0,key)
-                        item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(curve_data['time'])))
-                        item.setData(1,0, curve_data['name']) 
+                        item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date)))
+                        item.setData(1,0, name) 
                         self.addTopLevelItem(item)
-                        for child in curve_data['childs']:
-                            data = self.add_child(item, data, child)  
+                        for child in childs:
+                            keys_temp = self.add_child(item, keys_temp, child)  
                 i=i+1
             self.sortItems(2,QtCore.Qt.DescendingOrder)
             
         
-    def add_child(self, item, data, child):
+    def add_child(self, item, keys, child):
         #child = DataBase().get_curve(child)
-        child_data = data.pop(str(child))
+        keys.remove(child)
+        name, date, childs, parent, params = SQLDatabase().get_curve_metadata(child)
         child_item=QTreeWidgetItem()
         child_item.setData(0,0,str(child))
-        child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(child_data['time'])))
-        child_item.setData(1,0, child_data['name'])
+        child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date)))
+        child_item.setData(1,0, name)
         item.addChild(child_item)
-        for grandchild in child_data['childs']:
-            data = self.add_child(child_item, data, grandchild)
-        return data
+        for grandchild in childs:
+            keys = self.add_child(child_item, keys, grandchild)
+        return keys
         
 
 class SpinBoxWidget(QSpinBox):
@@ -161,14 +169,14 @@ class PlotWidget(pg.PlotWidget):
     def plot(self):
         item = self.window().tree_widget.active_item
         curve_id = int(item.data(0,0))
-        curve = DataBase().get_curve(curve_id)
+        curve = SQLDatabase().get_curve(curve_id)
         self.getPlotItem().clear()
         self.getPlotItem().plot(curve.x, curve.y)
         
         
         
         
-data = DataBase().get_data()
+#data = DataBase().get_data()
 app = QtCore.QCoreApplication.instance()
 if app is None:
     app = QApplication(sys.argv)

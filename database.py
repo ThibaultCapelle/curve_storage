@@ -4,9 +4,7 @@ import numpy as np
 import h5py
 import sqlite3
 
-DATA_LOCATION = r'C:\Users\Thibault\Documents\phd\python\Database_test'
-DATABASE_LOCATION = os.path.join(os.environ['HOMEPATH'], '.database')
-DATABASE_NAME = 'database.db'
+
 
 
 class SQLDatabase():
@@ -14,6 +12,9 @@ class SQLDatabase():
     first_instance = True
     instances = []
     highest_key = None
+    DATA_LOCATION = r'C:\Users\Thibault\Documents\phd\python\Database_test'
+    DATABASE_LOCATION = os.path.join(os.environ['HOMEPATH'], '.database')
+    DATABASE_NAME = 'database.db'
     
     def __init__(self, data_location=DATA_LOCATION):
         if not self.__class__.first_instance:
@@ -25,7 +26,7 @@ class SQLDatabase():
             if not '.database' in os.listdir():
                 os.mkdir('.database')
             os.chdir('.database')
-            self.db=sqlite3.connect(DATABASE_NAME)
+            self.db=sqlite3.connect(SQLDatabase.DATABASE_NAME)
             if not self.is_table_created():
                 self.create_table()
             self.__class__.instances.append(self.db)
@@ -35,7 +36,7 @@ class SQLDatabase():
     def get_all_ids(self):
         self.get_cursor()
         self.cursor.execute('''SELECT id FROM data''')
-        return np.array(self.cursor.fetchall())
+        return np.array(self.cursor.fetchall()).flatten().tolist()
    
     def get_highest_key(self):
         self.get_cursor()
@@ -49,14 +50,13 @@ class SQLDatabase():
         try:
             self.cursor=self.db.cursor()
         except sqlite3.ProgrammingError:
-            self.db=sqlite3.connect(DATABASE_NAME)
+            self.db=sqlite3.connect(SQLDatabase.DATABASE_NAME)
             self.__class__.instances=[self.db]
             self.cursor=self.db.cursor()
     
     def get_n_keys(self):
-        self.get_cursor()
-        self.cursor.execute('''SELECT id FROM data''')
-        return len(np.array(self.cursor.fetchall()))
+        keys = self.get_all_ids()
+        return len(keys)
         
     def is_table_created(self):
         self.get_cursor()
@@ -113,6 +113,18 @@ class SQLDatabase():
         params = json.loads(res[4])
         return Curve(curve_id, database=self, name=name, date=date, childs=childs, parent=parent, params=params)
     
+    def get_curve_metadata(self, curve_id):
+        assert self.exists(curve_id)
+        self.get_cursor()
+        self.cursor.execute('''SELECT name, date, childs, parent, params FROM data WHERE id=?''', (int(curve_id),))
+        res = self.cursor.fetchone()
+        name = res[0]
+        date = float(res[1])
+        childs = json.loads(res[2])
+        parent = int(res[3])
+        params = json.loads(res[4])
+        return name, date, childs, parent, params
+    
     def update_entry(self, curve):
         assert self.exists(curve.id)
         self.get_cursor()
@@ -134,8 +146,8 @@ class SQLDatabase():
                             (int(curve_id),))
         self.db.commit() 
     
-    def __del__(self):
-        self.close()
+    #def __del__(self):
+    #    self.close()
     
     def exists(self, curve_id):
         self.get_cursor()
@@ -379,8 +391,8 @@ if __name__=='__main__':
     if not '.database' in os.listdir():
         os.mkdir('.database')
     os.chdir('.database')
-    if DATABASE_NAME in os.listdir():
-        os.remove(DATABASE_NAME)
+    if SQLDatabase.DATABASE_NAME in os.listdir():
+        os.remove(SQLDatabase.DATABASE_NAME)
     database=SQLDatabase()
     curve=Curve([0,1,2,3], [1,2,3,4])
     curve.params['hello']='bonjour'
