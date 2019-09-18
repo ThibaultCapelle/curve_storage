@@ -6,7 +6,6 @@ import sqlite3
 
 
 
-
 class SQLDatabase():
     
     first_instance = True
@@ -32,12 +31,22 @@ class SQLDatabase():
             self.__class__.instances.append(self.db)
             self.__class__.highest_key=self.get_highest_key()
         self.data_location=data_location
+        self.db=sqlite3.connect(SQLDatabase.DATABASE_NAME)
+
     
     def get_all_ids(self):
+        if self.is_table_created():
+            self.get_cursor()
+            self.cursor.execute('''SELECT id FROM data''')
+            return np.array(self.cursor.fetchall()).flatten().tolist()
+        else:
+            return []
+    
+    def get_one_id(self):
         self.get_cursor()
         self.cursor.execute('''SELECT id FROM data''')
-        return np.array(self.cursor.fetchall()).flatten().tolist()
-   
+        return np.array(self.cursor.fetchone()).flatten()[0]
+    
     def get_highest_key(self):
         self.get_cursor()
         self.cursor.execute('''SELECT id FROM data''')
@@ -111,7 +120,13 @@ class SQLDatabase():
         childs = json.loads(res[2])
         parent = int(res[3])
         params = json.loads(res[4])
-        return Curve(curve_id, database=self, name=name, date=date, childs=childs, parent=parent, params=params)
+        directory=self.get_folder_from_date(date)
+        if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
+                with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
+                    data=f['data']
+                    x=data[0]
+                    y=data[1]
+        return Curve(curve_id, x, y, database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
     
     def get_curve_metadata(self, curve_id):
         assert self.exists(curve_id)
@@ -144,10 +159,21 @@ class SQLDatabase():
         self.get_cursor()
         self.cursor.execute('''DELETE FROM data WHERE id=?''',
                             (int(curve_id),))
+        filename=os.path.join(curve.directory, '{:}.h5'.format(curve_id))
+        if(os.path.exists(filename)):
+            os.remove(filename)
+        if curve.exist_directory():
+            os.chdir(curve.directory)
+            shutil.rmtree(str(curve_id))
+        directory=curve.directory
+        while((len(os.listdir(directory))==0)&(directory!=SQLDatabase.DATA_LOCATION)):
+            os.rmdir(directory)
+            directory=os.path.split(directory)[0]
+        #curve.delete(delete_from_database=False)
         self.db.commit() 
     
-    #def __del__(self):
-    #    self.close()
+    def __del__(self):
+        self.close()
     
     def exists(self, curve_id):
         self.get_cursor()
@@ -172,142 +198,16 @@ class SQLDatabase():
         assert os.path.exists(path)
         return path
     
+    def delete_all_data(self):
+        while(self.get_n_keys()>0):
+            curve_id=self.get_one_id()
+            self.delete_entry(curve_id)
+    
     def close(self):
         self.db.close()
         self.__class__.first_instance=True
         self.__class__.instances=[]
-            
-
-#class DataBase:
-#
-#    def __init__(self, database_location=None, data_location=r'C:\Users\Thibault\Documents\phd\python\Database_test'):
-#        if database_location is None:
-#            self.database_location = self.get_or_create_database()
-#        else:
-#            assert os.path.exists(database_location)
-#            self.database_location=database_location
-#        if not os.path.exists(data_location):
-#            os.makedirs(data_location)
-#        self.data_location=data_location
-#
-#    def get_or_create_database(self):
-#        os.chdir(os.environ['HOMEPATH'])
-#        if not '.database' in os.listdir():
-#            os.mkdir('.database')
-#        os.chdir('.database')
-#        if DATABASE_NAME in os.listdir():
-#            return os.path.join(os.getcwd(), DATABASE_NAME)
-#        if 'database.json' in os.listdir():
-#            return os.path.join(os.getcwd(), 'database.json')
-#        else:
-#            with open('database.json', 'w') as f:
-#                json.dump(dict(), f)
-#            return os.path.join(os.getcwd(), 'database.json')
-#        
-#    def equalize_with_data(self):
-#        data = self.get_data()
-#        for k in data.keys():
-#            path = self.get_folder_from_id(k)
-#            if (not '{:}.h5'.format(k) in os.listdir(path)) or (not os.path.exists(path)):
-#                self.remove(k)
-#
-#    def get_time_from_id(self, id):
-#        data = self.get_data()
-#        assert str(id) in data.keys()
-#        return data[str(id)]['time']
-#
-#    def get_folder_from_id(self, id):
-#        t = self.get_time_from_id(id)
-#        path = os.path.join(self.data_location,time.strftime("%Y\%m\%d",time.gmtime(t)))
-#        assert os.path.exists(path)
-#        return path
-#
-#    def get_data(self):
-#        with open(self.database_location, 'r') as f:
-#            data=json.load(f)
-#        return data
-#
-#    def get_last_id(self):
-#        data=self.get_data()
-#        result = 0
-#        for k in data.keys():
-#            if int(k)>result:
-#                result=int(k)
-#        return result
-#    
-#    def get_whole_params_from_id(self, curve_id):
-#        data = self.get_data()
-#        assert str(curve_id) in data.keys()
-#        return data[str(curve_id)]
-#        
-#    
-#    def get_curve(self, curve_id):
-#        path = self.get_folder_from_id(curve_id)
-#        curve_params = self.get_whole_params_from_id(curve_id)
-#        t = curve_params['time']
-#        name = curve_params['name']
-#        params = curve_params['params']
-#        childs = curve_params['childs']
-#        parent = curve_params['parent']
-#        #t = self.get_time_from_id(curve_id)
-#        assert '{:}.h5'.format(curve_id) in os.listdir(path)
-#        with h5py.File(os.path.join(path,'{:}.h5'.format(curve_id)), 'r') as f:
-#            data=f['data'].value
-
-#           params_stored = f['params']
-#            params=dict()
-#            for k,v in params_stored.items():
-#                params[k]=v.value
-#            childs = list(f['childs'].value)
-#            parent = f['parent'].value
-#            name = f['name'].value
-#
-#        curve = Curve(curve_id)
-#        #if 'name' in params.keys():
-#        #    curve.name=params['name']
-#        #else:
-#        #    curve.name=""
-#        curve.x=data[0]
-#        curve.y=data[1]
-#        curve.childs = childs
-#        curve.parent=parent
-#        curve.params=params
-#        curve.name=name
-#        curve.time=t
-#        return curve
-#            
-#    def new_id(self):
-#        new_id = self.get_last_id()+1
-#        new_time = time.time()
-#        with open(self.database_location, 'r') as f:
-#            data=json.load(f)
-#        curve_data = dict(time=new_time)
-#        data.update({new_id:curve_data})
-#        with open(self.database_location, 'w') as f:
-#            json.dump(data, f)
-#        d = datetime.fromtimestamp(new_time)
-#        os.chdir(self.data_location)
-#        year = time.strftime("%Y",time.gmtime(new_time))
-#        month = time.strftime("%m",time.gmtime(new_time))
-#        day = time.strftime("%d",time.gmtime(new_time))
-#        if not year in os.listdir():
-#            os.mkdir(year)
-#        os.chdir(year)
-#        if not month in os.listdir():
-#            os.mkdir(month)
-#        os.chdir(month)
-#        if not day in os.listdir():
-#            os.mkdir(day)
-#        return new_id
-#
-#    def remove(self, id):
-#        data = self.get_data()
-#        data.pop(str(id))
-#        with open(self.database_location, 'w') as f:
-#            json.dump(data, f)
-#            
-        
-
+ 
 class Curve:
 
     def __init__(self, *args, **kwargs):
@@ -315,25 +215,29 @@ class Curve:
             self.database=kwargs.pop('database')
         else:
             self.database=SQLDatabase()
-        #self.database = DataBase()
         if len(args)==1 and np.isscalar(args[0]):
+            self.copy(self.database.get_curve(args[0]))
+        elif len(args)==3:
             self.id=args[0]
+            for key in ['name', 'date', 'childs', 'parent', 'params', 'directory']:
+                assert key in kwargs.keys()
             self.name=kwargs.pop('name')
             self.date=kwargs.pop('date')
             self.childs=kwargs.pop('childs')
             self.parent=kwargs.pop('parent')
             self.params=kwargs.pop('params')
-            self.directory=self.database.get_folder_from_date(self.date)
-            if os.path.exists(os.path.join(self.directory, '{:}.h5'.format(self.id))):
-                with h5py.File(os.path.join(self.directory, '{:}.h5'.format(self.id)), 'r') as f:
-                    data=f['data']
-                    self.x=data[0]
-                    self.y=data[1]
-        elif  len(args)==2:
-            if len(args[0])!=len(args[1]):
+            self.directory=kwargs.pop('directory')
+            self.x=args[1]
+            self.y=args[2]
+        elif  len(args)==2 or len(args)==1 and not np.isscalar(args[0]):
+            if len(args)==2:
+                if len(args[0])!=len(args[1]):
                     raise(TypeError, "The format of the input is wrong")
-            self.x = np.array(args[0])
-            self.y = np.array(args[1])
+                self.x = np.array(args[0])
+                self.y = np.array(args[1])
+            else:
+                self.x = np.array(range(len(args[0])))
+                self.y = np.array(args[0])
             if 'name' in kwargs:
                 self.name=kwargs.pop('name')
             else:
@@ -343,7 +247,7 @@ class Curve:
             self.id=None
             self.parent=None
             if 'not_saved' not in kwargs.keys() or kwargs['not_saved'] is False:
-                self.save()
+                self.save() 
         else:
             raise(TypeError, "The format of the input is wrong")
         
@@ -354,6 +258,8 @@ class Curve:
     
     def remove_child(self, child_id):
         assert child_id in self.childs
+        child = self.database.get_curve(child_id)
+        child.parent=child_id
         self.childs.remove(child_id)
         self.save()
         
@@ -369,7 +275,19 @@ class Curve:
         
     def exist_directory(self):
         return str(self.id) in os.listdir(self.directory)
-
+    
+    def copy(self, curve):
+        self.id=curve.id
+        self.x=curve.x
+        self.y=curve.y
+        self.name=curve.name
+        self.params=curve.params
+        self.date=curve.date
+        self.childs=curve.childs
+        self.parent=curve.parent
+        self.database=curve.database
+        self.directory=curve.directory
+        
     def get_or_create_dir(self):
         os.chdir(self.directory)
         if not str(self.id) in os.listdir():
@@ -380,10 +298,6 @@ class Curve:
 
     def delete(self):
         self.database.delete_entry(self.id)
-        os.remove(os.path.join(self.directory, '{:}.h5'.format(self.id)))
-        if self.exist_directory():
-            os.chdir(self.directory)
-            shutil.rmtree('/'+str(id))
 
 if __name__=='__main__':
     
@@ -391,8 +305,6 @@ if __name__=='__main__':
     if not '.database' in os.listdir():
         os.mkdir('.database')
     os.chdir('.database')
-    if SQLDatabase.DATABASE_NAME in os.listdir():
-        os.remove(SQLDatabase.DATABASE_NAME)
     database=SQLDatabase()
     curve=Curve([0,1,2,3], [1,2,3,4])
     curve.params['hello']='bonjour'
