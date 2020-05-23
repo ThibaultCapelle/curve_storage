@@ -11,7 +11,9 @@ class SQLDatabase():
     first_instance = True
     instances = []
     highest_key = None
-    DATA_LOCATION = r'C:\Users\Thibault\Documents\phd\python\Database_test'
+    DATA_LOCATION = os.path.join(os.environ['HOME'], 'Documents/Database_test')
+    if not os.path.exists(DATA_LOCATION):
+        os.mkdir(DATA_LOCATION)
     if sys.platform!='linux':
         DATABASE_LOCATION = os.path.join(os.environ['HOMEPATH'], '.database')
     else:
@@ -152,7 +154,10 @@ class SQLDatabase():
         if len(curve.childs)>0:
             curve.childs=[int(i) for i in curve.childs]
         self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=?, params=? WHERE id=?''',
-                            (curve.name, json.dumps(curve.childs), int(curve.parent), json.dumps(curve.params), int(curve.id)))
+                            (curve.name, json.dumps(curve.childs),
+                             int(curve.parent),
+                             json.dumps(curve.params), 
+                             int(curve.id)))
         self.db.commit()
     
     def delete_entry(self, curve_id):
@@ -249,6 +254,7 @@ class Curve:
             else:
                 self.name=""
             self.params = kwargs
+            print(self.params)
             self.childs = list([])
             self.id=None
             self.parent=None
@@ -293,11 +299,11 @@ class Curve:
         self.parent=curve.parent
         self.database=curve.database
         self.directory=curve.directory
+        self.directory=self.directory
         
     def get_or_create_dir(self):
-        os.chdir(self.directory)
-        if not str(self.id) in os.listdir():
-            os.mkdir(str(self.id))
+        if not str(self.id) in os.listdir(self.directory):
+            os.mkdir(os.path.join(self.directory,str(self.id)))
         path = os.path.join(self.directory, str(self.id))
         assert os.path.exists(path)
         return path

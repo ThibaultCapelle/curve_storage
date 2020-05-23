@@ -8,11 +8,11 @@ Created on Thu Dec  6 15:11:28 2018
 from PyQt5.QtWidgets import (QApplication,
 QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTableWidget, QSpinBox, QTableWidgetItem, QAbstractItemView,
-QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu)
+QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu, QPushButton)
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-import sys, time, os
+import sys, time, os, subprocess
 from curve_storage.database import Curve, SQLDatabase
 import pyqtgraph as pg
 import numpy as np
@@ -29,24 +29,31 @@ class WindowWidget(QWidget):
         super().__init__()
         self.layout_global = QHBoxLayout()
         self.layout_left = QVBoxLayout()
+        self.layout_center = QVBoxLayout()
         self.layout_right = QVBoxLayout()
         self.plot_widget = PlotWidget()
         self.layout_show_first = QHBoxLayout()
         self.layout_global.addLayout(self.layout_left)
+        self.layout_global.addLayout(self.layout_center)
         self.layout_global.addLayout(self.layout_right)
         self.layout_left.addLayout(self.layout_show_first)
         self.spinbox_widget = SpinBoxWidget()
         self.tree_widget = TreeWidget()
         self.param_widget = ParamWidget(self.layout)
-        self.layout_global.addWidget(self.param_widget)
+        self.layout_right.addWidget(self.param_widget)
         self.show_first_label = QLabel('show first')
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
         self.layout_show_first.addWidget(self.show_first_label)
-        self.layout_right.addWidget(self.plot_widget)
+        self.layout_center.addWidget(self.plot_widget)
+        self.directory_button = DirectoryButton(self.tree_widget)
+        self.directory_button.clicked.connect(self.directory_button.action)
+        self.layout_right.addWidget(self.directory_button)
+        
         self.spinbox_changed.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
         self.row_changed.connect(self.param_widget.actualize)
+        self.row_changed.connect(self.directory_button.update)
         self.database_changed.directoryChanged.connect(self.tree_widget.compute)
         self.spinbox_widget.setValue(20)
         self.setLayout(self.layout_global)
@@ -63,6 +70,37 @@ class WindowWidget(QWidget):
     
     def resizeEvent(self, event):
         self.tree_widget.move()
+
+class DirectoryButton(QPushButton):
+
+    def __init(self, treewidget):
+        super().__init__()
+        self.treewidget=treewidget
+        self.current_id=None
+
+    def update(self):
+        self.current_id=self.window().tree_widget.active_item.data(0,0)
+        curve = SQLDatabase().get_curve(self.current_id)
+        if not curve.exist_directory():
+            self.setText('Create directory')
+        else:
+            self.setText('Go to directory')
+    
+    def startfile(self,filename):
+      try:
+        os.startfile(filename)
+      except:
+        subprocess.Popen(['xdg-open', filename])
+    
+    def action(self):
+        print('action')
+        curve = SQLDatabase().get_curve(self.current_id)
+        self.setText('Go to directory')
+        if not curve.exist_directory():
+            curve.get_or_create_dir()
+        else:
+            self.startfile(curve.get_or_create_dir())
+            
         
 class QTreeContextMenu(QMenu):
     
@@ -96,11 +134,10 @@ class QTreeContextMenu(QMenu):
         self.show()
         
     def delete(self):
-        print('deleting')
+        
         next_item=None
         self.selected_items=self.tree_widget.selectedItems()
         selection=self.selected_items
-        print([item.data(0,0) for item in selection])
         for item in selection:
             curve_id=item.data(0,0)
             print(curve_id)

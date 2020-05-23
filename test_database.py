@@ -7,10 +7,14 @@ Created on Thu Dec  6 11:17:28 2018
 
 from curve_storage.database import Curve, SQLDatabase
 import numpy as np
-import os, shutil
+import os, shutil, sys
 
-database_path = os.path.join(os.environ['HOMEPATH'],'.database')
-data_path = r'C:\Users\Thibault\Documents\phd\python\Database_test'
+if sys.platform!='linux':
+    database_path = os.path.join(os.environ['HOMEPATH'],'.database')
+    data_path = os.path.join(os.environ['HOMEPATH'], 'Documents', 'Database_test')
+else:
+    database_path = os.path.join(os.environ['HOME'],'.database')
+    data_path = os.path.join(os.environ['HOME'], 'Documents', 'Database_test')
 
 import unittest
 
@@ -92,7 +96,8 @@ class TestStringMethods(unittest.TestCase):
         curve_1=Curve([0,1,2,3], [0,2,2,2])
         self.assertTrue(curve_1.database.exists(curve_1.id))
         curve_1.delete()
-        self.assertTrue('{:}.h5'.format(curve_1.id) not in os.listdir(curve_1.directory))
+        if os.path.exists(curve_1.directory):
+            self.assertTrue('{:}.h5'.format(curve_1.id) not in os.listdir(curve_1.directory))
         self.assertFalse(curve_1.database.exists(curve_1.id))
         SQLDatabase().delete_all_data()
 
