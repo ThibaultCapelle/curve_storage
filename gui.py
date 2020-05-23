@@ -96,21 +96,15 @@ class QTreeContextMenu(QMenu):
         self.show()
         
     def delete(self):
+        print('deleting')
         next_item=None
         self.selected_items=self.tree_widget.selectedItems()
         selection=self.selected_items
-        while((len(selection)>0) and ((next_item is None) or (next_item in self.selected_items))):
-            item=selection.pop()
-            next_item=self.tree_widget.itemBelow(item)
-            if(next_item is None):
-                next_item=self.tree_widget.itemAbove(item)
-        for item in self.selected_items:
+        print([item.data(0,0) for item in selection])
+        for item in selection:
             curve_id=item.data(0,0)
+            print(curve_id)
             SQLDatabase().delete_entry(curve_id)
-        self.setVisible(False)
-        if next_item is not None:
-            self.tree_widget.setCurrentItem(next_item)
-            next_item.setSelected(1)
         
        
 class ParamWidget(QTableWidget):

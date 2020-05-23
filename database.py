@@ -1,7 +1,7 @@
 import os, json, time, shutil
 from datetime import datetime
 import numpy as np
-import h5py
+import h5py, sys
 import sqlite3
 
 
@@ -12,7 +12,10 @@ class SQLDatabase():
     instances = []
     highest_key = None
     DATA_LOCATION = r'C:\Users\Thibault\Documents\phd\python\Database_test'
-    DATABASE_LOCATION = os.path.join(os.environ['HOMEPATH'], '.database')
+    if sys.platform!='linux':
+        DATABASE_LOCATION = os.path.join(os.environ['HOMEPATH'], '.database')
+    else:
+        DATABASE_LOCATION = os.path.join(os.environ['HOME'], '.database')
     DATABASE_NAME = 'database.db'
     
     def __init__(self, data_location=DATA_LOCATION):
@@ -21,7 +24,10 @@ class SQLDatabase():
             assert self.__class__.highest_key is not None
         else:
             self.__class__.first_instance=False
-            os.chdir(os.environ['HOMEPATH'])
+            if sys.platform!='linux':
+                os.chdir(os.environ['HOMEPATH'])
+            else:
+                os.chdir(os.environ['HOME'])
             if not '.database' in os.listdir():
                 os.mkdir('.database')
             os.chdir('.database')
@@ -301,7 +307,10 @@ class Curve:
 
 if __name__=='__main__':
     
-    os.chdir(os.environ['HOMEPATH'])
+    if sys.platform!='linux':
+        os.chdir(os.environ['HOMEPATH'])
+    else:
+        os.chdir(os.environ['HOME'])
     if not '.database' in os.listdir():
         os.mkdir('.database')
     os.chdir('.database')
