@@ -134,7 +134,6 @@ class QTreeContextMenu(QMenu):
         self.show()
         
     def delete(self):
-        
         next_item=None
         self.selected_items=self.tree_widget.selectedItems()
         selection=self.selected_items
@@ -168,6 +167,57 @@ class ParamWidget(QTableWidget):
             value = QTableWidgetItem()
             value.setText(str(v))
             self.setItem(i,1,value)
+    
+    def mousePressEvent(self, event):
+        if event.button()==QtCore.Qt.RightButton:
+            current_id=self.window().tree_widget.active_item.data(0,0)
+            if current_id is not None:
+                pass
+    
+    def contextMenuEvent(self, event):
+        current_id=self.window().tree_widget.active_item.data(0,0)
+        if current_id is not None:
+            self.menu = QMenu(self)
+            addParamAction = self.menu.addAction("add new parameter")
+            action = self.menu.exec_(self.mapToGlobal(event.pos()))
+            if action == addParamAction:
+                self.new_param_menu()
+                self.menu.close()
+                
+    def new_param_menu(self):
+        self.new_param_window=QWidget(self.window())
+        self.new_param_layout=QHBoxLayout(self.new_param_window)
+        self.name_layout=QVBoxLayout(self.new_param_window)
+        self.name_text=QLabel('Name')
+        self.name_text.setStyleSheet("QLabel { background-color : white; color : black; }")
+        self.name_layout.addWidget(self.name_text)
+        self.name_box=QLineEdit(self.new_param_window)
+        self.name_layout.addWidget(self.name_box)
+        self.new_param_layout.addLayout(self.name_layout)
+        self.new_param_window.setLayout(self.new_param_layout)
+        self.new_param_window.setGeometry(QRect(500, 250, 300, 100))
+        self.param_layout=QVBoxLayout(self.new_param_window)
+        self.param_text=QLabel('param')
+        self.param_text.setStyleSheet("QLabel { background-color : white; color : black; }")
+        self.param_layout.addWidget(self.param_text)
+        self.param_box=QLineEdit(self.new_param_window)
+        self.param_layout.addWidget(self.param_box)
+        self.new_param_layout.addLayout(self.param_layout)
+        self.button=QPushButton()
+        self.button.setText('add new parameter')
+        self.button.clicked.connect(self.get_new_param)
+        self.new_param_layout.addWidget(self.button)
+        self.new_param_window.show()
+    
+    def get_new_param(self):
+        name, param = self.name_box.text(), self.param_box.text()
+        current_id=self.window().tree_widget.active_item.data(0,0)
+        curve=SQLDatabase().get_curve(current_id)
+        curve.params[name]=param
+        curve.save()
+        self.new_param_window.close()
+        
+            
 
 class TreeWidget(QTreeWidget):
     
