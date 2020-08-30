@@ -8,7 +8,7 @@ Created on Thu Dec  6 15:11:28 2018
 from PyQt5.QtWidgets import (QApplication,
 QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTableWidget, QSpinBox, QTableWidgetItem, QAbstractItemView,
-QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu)
+QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu, QPushButton)
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -31,6 +31,7 @@ class WindowWidget(QWidget):
         self.layout_left = QVBoxLayout()
         self.layout_right = QVBoxLayout()
         self.plot_widget = PlotWidget()
+        self.directory_button=QDirectoryButton()
         self.layout_show_first = QHBoxLayout()
         self.layout_global.addLayout(self.layout_left)
         self.layout_global.addLayout(self.layout_right)
@@ -44,9 +45,11 @@ class WindowWidget(QWidget):
         self.layout_left.addWidget(self.tree_widget)
         self.layout_show_first.addWidget(self.show_first_label)
         self.layout_right.addWidget(self.plot_widget)
+        self.layout_right.addWidget(self.directory_button)
         self.spinbox_changed.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
         self.row_changed.connect(self.param_widget.actualize)
+        self.row_changed.connect(self.directory_button.actualize)
         self.database_changed.directoryChanged.connect(self.tree_widget.compute)
         self.spinbox_widget.setValue(20)
         self.setLayout(self.layout_global)
@@ -63,6 +66,39 @@ class WindowWidget(QWidget):
     
     def resizeEvent(self, event):
         self.tree_widget.move()
+
+class QDirectoryButton(QPushButton):
+    
+    def __init__(self):
+        super().__init__()
+        self.clicked.connect(self.execute)
+        self.setHidden(True)
+    
+    def actualize(self, curve=None):
+        selected_items=self.window().tree_widget.selectedItems()
+        if len(selected_items)==1:
+            self.setVisible(True)
+            if curve is None:
+                item = self.window().tree_widget.active_item
+                curve_id = int(item.data(0,0))
+                curve = SQLDatabase().get_curve(curve_id)
+            if not curve.exist_directory():
+                self.setText("Create directory")
+            else:
+                self.setText("Open directory")
+        else:
+            self.setHidden(True)
+    
+    def execute(self):
+        item = self.window().tree_widget.active_item
+        curve_id = int(item.data(0,0))
+        curve = SQLDatabase().get_curve(curve_id)
+        path=curve.get_or_create_dir()
+        if self.text()=="Open directory":
+            os.startfile(os.path.realpath(path))
+        self.actualize(curve=curve)
+
+        
         
 class QTreeContextMenu(QMenu):
     
@@ -98,7 +134,7 @@ class QTreeContextMenu(QMenu):
     def delete(self):
         next_item=None
         self.selected_items=self.tree_widget.selectedItems()
-        selection=self.selected_items
+        selection=self.selected_items.copy()
         while((len(selection)>0) and ((next_item is None) or (next_item in self.selected_items))):
             item=selection.pop()
             next_item=self.tree_widget.itemBelow(item)
@@ -122,6 +158,9 @@ class ParamWidget(QTableWidget):
         self.setHorizontalHeaderLabels(['Param', 'Value'])
         self.verticalHeader().setVisible(False)
         self.setMaximumWidth(300)
+        self.itemChanged.connect(self.item_changed)
+        self.clicked_item=None
+        self.itemClicked.connect(self.item_clicked)
     
     def actualize(self):
         item = self.window().tree_widget.active_item
@@ -137,6 +176,19 @@ class ParamWidget(QTableWidget):
             value = QTableWidgetItem()
             value.setText(str(v))
             self.setItem(i,1,value)
+            
+    def item_changed(self, item):
+        if item.column()==1:
+            if self.clicked_item==item:
+                self.clicked_item=None
+                curve_item = self.window().tree_widget.active_item
+                curve_id = int(curve_item.data(0,0))
+                curve = SQLDatabase().get_curve(curve_id)
+                curve.params[self.item(item.row(), 0).text()]=item.text()
+                curve.save()
+    
+    def item_clicked(self, item):
+        self.clicked_item=item
 
 class TreeWidget(QTreeWidget):
     
@@ -149,6 +201,7 @@ class TreeWidget(QTreeWidget):
             self.setColumnWidth(i,50)
         self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.currentItemChanged.connect(self.current_item_changed)
+        self.itemSelectionChanged.connect(self.item_selection_changed)
         self.compute(first_use=True)
         self.itemActivated.connect(self.compute)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -162,6 +215,9 @@ class TreeWidget(QTreeWidget):
     def RightClickMenu(self, point):
         item=self.itemAt(point)
         self.contextMenu=QTreeContextMenu(item)
+    
+    def item_selection_changed(self):
+        self.window().row_changed.emit()
         
     def current_item_changed(self, item, previous_item):
         self.active_item = item
@@ -241,16 +297,16 @@ class PlotWidget(pg.PlotWidget):
         
         
         
-        
-#data = DataBase().get_data()
-app = QtCore.QCoreApplication.instance()
-if app is None:
-    app = QApplication(sys.argv)
-window = WindowWidget()
-curve_1=Curve([0,1,2,3])
-curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
-
-#app.exec_()
+if __name__=='__main__':        
+    #data = DataBase().get_data()
+    app = QtCore.QCoreApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    window = WindowWidget()
+    curve_1=Curve([0,1,2,3])
+    curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
+    
+    #app.exec_()
 
 
 
