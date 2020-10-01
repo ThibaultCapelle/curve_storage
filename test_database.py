@@ -33,7 +33,7 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(curve.id,1)
         self.assertEqual(curve.name,'bonjour')
         SQLDatabase().delete_all_data()
-
+ 
     def test_adding_curves(self):
         database_fullpath = os.path.join(database_path, 'database.db')
         if os.path.exists(database_fullpath):
@@ -45,7 +45,7 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(curve.database.get_n_keys(),2)
         self.assertEqual(curve.id,2)
         SQLDatabase().delete_all_data()
-
+  
     def test_retrieving_data(self):
         curve_1=Curve([0,1,2,3], [0,2,2,2], name='bonjour')
         curve_2=curve_1.database.get_curve(curve_1.id)
@@ -67,7 +67,7 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(curve_2.parent, curve_1.id)
         self.assertTrue(curve_2.id in curve_1.childs)
         SQLDatabase().delete_all_data()
-   
+    
     def test_parameter_modification(self):
         curve_1=Curve([0,1,2,3], [0,2,2,2], name='bonjour')
         size_1 = curve_1.database.get_n_keys()
@@ -84,7 +84,7 @@ class TestStringMethods(unittest.TestCase):
             Curve([0,0],[1,1],[2,2])
         with self.assertRaises(TypeError):
             Curve([0,0,0],[1])
-
+   
     def test_curve_directory(self):
         curve_1=Curve([0,1,2,3], [0,2,2,2])
         directory = curve_1.get_or_create_dir()
@@ -96,8 +96,7 @@ class TestStringMethods(unittest.TestCase):
         curve_1=Curve([0,1,2,3], [0,2,2,2])
         self.assertTrue(curve_1.database.exists(curve_1.id))
         curve_1.delete()
-        if os.path.exists(curve_1.directory):
-            self.assertTrue('{:}.h5'.format(curve_1.id) not in os.listdir(curve_1.directory))
+        self.assertTrue('{:}.h5'.format(curve_1.id) not in os.listdir(curve_1.directory))
         self.assertFalse(curve_1.database.exists(curve_1.id))
         SQLDatabase().delete_all_data()
 

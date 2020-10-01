@@ -8,7 +8,7 @@ Created on Thu Dec  6 15:11:28 2018
 from PyQt5.QtWidgets import (QApplication,
 QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTableWidget, QSpinBox, QTableWidgetItem, QAbstractItemView,
-QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu, QPushButton)
+QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu)
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -32,7 +32,6 @@ class WindowWidget(QWidget):
         self.layout_center = QVBoxLayout()
         self.layout_right = QVBoxLayout()
         self.plot_widget = PlotWidget()
-        self.directory_button=QDirectoryButton()
         self.layout_show_first = QHBoxLayout()
         self.layout_global.addLayout(self.layout_left)
         self.layout_global.addLayout(self.layout_center)
@@ -46,6 +45,7 @@ class WindowWidget(QWidget):
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
         self.layout_show_first.addWidget(self.show_first_label)
+
         self.layout_center.addWidget(self.plot_widget)
         self.directory_button = DirectoryButton(self.tree_widget)
         self.directory_button.clicked.connect(self.directory_button.action)
@@ -71,6 +71,7 @@ class WindowWidget(QWidget):
     
     def resizeEvent(self, event):
         self.tree_widget.move()
+
 
 
 class DirectoryButton(QPushButton):
@@ -102,6 +103,7 @@ class DirectoryButton(QPushButton):
             curve.get_or_create_dir()
         else:
             self.startfile(curve.get_or_create_dir())
+
         
 class QTreeContextMenu(QMenu):
     
@@ -140,6 +142,7 @@ class QTreeContextMenu(QMenu):
         next_item=None
         self.selected_items=self.tree_widget.selectedItems()
         selection=self.selected_items
+
         for item in selection:
             curve_id=item.data(0,0)
             print(curve_id)
@@ -243,7 +246,6 @@ class TreeWidget(QTreeWidget):
             self.setColumnWidth(i,50)
         self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.currentItemChanged.connect(self.current_item_changed)
-        self.itemSelectionChanged.connect(self.item_selection_changed)
         self.compute(first_use=True)
         self.itemActivated.connect(self.compute)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -257,9 +259,6 @@ class TreeWidget(QTreeWidget):
     def RightClickMenu(self, point):
         item=self.itemAt(point)
         self.contextMenu=QTreeContextMenu(item)
-    
-    def item_selection_changed(self):
-        self.window().row_changed.emit()
         
     def current_item_changed(self, item, previous_item):
         print('changing active item')
@@ -346,16 +345,16 @@ class PlotWidget(pg.PlotWidget):
         
         
         
-if __name__=='__main__':        
-    #data = DataBase().get_data()
-    app = QtCore.QCoreApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
-    window = WindowWidget()
-    curve_1=Curve([0,1,2,3])
-    curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
-    
-    #app.exec_()
+        
+#data = DataBase().get_data()
+app = QtCore.QCoreApplication.instance()
+if app is None:
+    app = QApplication(sys.argv)
+window = WindowWidget()
+curve_1=Curve([0,1,2,3])
+curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
+
+#app.exec_()
 
 
 

@@ -3,7 +3,6 @@ from datetime import datetime
 import numpy as np
 import h5py, sys
 import sqlite3
-import warnings
 
 
 
@@ -12,7 +11,7 @@ class SQLDatabase():
     first_instance = True
     instances = []
     highest_key = None
-    DATA_LOCATION = os.path.join(os.environ['HOME'], 'Documents/Database_test')
+    DATA_LOCATION = os.path.join(os.environ['HOMEPATH'], 'Documents/Database_test')
     if not os.path.exists(DATA_LOCATION):
         os.mkdir(DATA_LOCATION)
     if sys.platform!='linux':
@@ -174,11 +173,9 @@ class SQLDatabase():
         filename=os.path.join(curve.directory, '{:}.h5'.format(curve_id))
         if(os.path.exists(filename)):
             os.remove(filename)
-        else:
-            warnings.warn('You tried to delete a curve that does not have a file associated with')
         if curve.exist_directory():
-            print('removing directory')
-            shutil.rmtree(os.path.join(curve.directory,str(curve_id)))
+            os.chdir(curve.directory)
+            shutil.rmtree(str(curve_id))
         directory=curve.directory
         while((len(os.listdir(directory))==0)&(directory!=SQLDatabase.DATA_LOCATION)):
             os.rmdir(directory)
@@ -309,11 +306,10 @@ class Curve:
         self.directory=self.directory
         
     def get_or_create_dir(self):
+
         if not str(self.id) in os.listdir(self.directory):
             os.mkdir(os.path.join(self.directory,str(self.id)))
         path = os.path.join(self.directory, str(self.id))
-        if not os.path.exists(path):
-            os.mkdir(path)
         assert os.path.exists(path)
         return path
 
