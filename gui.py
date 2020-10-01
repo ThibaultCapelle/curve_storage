@@ -98,7 +98,51 @@ class QDirectoryButton(QPushButton):
             os.startfile(os.path.realpath(path))
         self.actualize(curve=curve)
 
-        
+class QParamsContextMenu(QMenu):
+    
+    def __init__(self, point, window):
+        super().__init__()
+        self.point=point
+        self._window=window
+        self.param_widget=self._window.param_widget
+        #self.header_position=self.item.treeWidget().header().geometry()
+        #self.layout_position=self.window().layout_right.geometry()
+        #print(self.layout_position)
+        self.setGeometry(self.point.x(), self.point.y(),
+                         self.width(), self.height())
+        self.setGeometry(self.geometry().
+                         translated(self.param_widget.
+                                    geometry().topLeft()))
+        self.add_action=self.addAction("add parameter")
+        self.add_action.triggered.connect(self.add_param)
+        self.height=self.geometry().height()
+        self.setVisible(True)
+        self.show()
+    
+    def add_param(self):
+        item = self._window.tree_widget.active_item
+        curve_id = int(item.data(0,0))
+        curve = SQLDatabase().get_curve(curve_id)
+        self.param_widget.setHorizontalHeaderLabels(['Param', 'Value'])
+        self.param_widget.setColumnCount(2)
+        self.param_widget.setHorizontalHeaderLabels(['Param', 'Value'])
+        self.param_widget.verticalHeader().setVisible(False)
+        self.param_widget.setMaximumWidth(300)
+        i=len(curve.params.keys())
+        self.param_widget.setRowCount(i+1)
+        for j,(k, v) in enumerate(curve.params.items()):
+            key = QTableWidgetItem()
+            key.setText(k)
+            self.param_widget.setItem(j,0,key)
+            value = QTableWidgetItem()
+            value.setText(str(v))
+            self.param_widget.setItem(j,1,value)
+        key = QTableWidgetItem() 
+        key.setText('new_param')
+        self.param_widget.setItem(i,0,key)
+        key = QTableWidgetItem() 
+        key.setText('new_value')
+        self.param_widget.setItem(i,1,key)
         
 class QTreeContextMenu(QMenu):
     
@@ -111,7 +155,9 @@ class QTreeContextMenu(QMenu):
         self.window_position=self.tree_widget.window().geometry()
         self.tree_position=self.tree_widget.geometry()
         #self.header_position=self.item.treeWidget().header().geometry()
-        self.setGeometry(self.item_position.translated(self.window_position.topLeft()).translated(self.tree_position.topLeft()))
+        self.setGeometry(self.item_position.
+                         translated(self.window_position.topLeft())
+                         .translated(self.tree_position.topLeft()))
         #self.setGeometry(self.geometry().translated(self.layout_left_position.topLeft()))
         self.delete_action=self.addAction("delete")
         self.delete_action.triggered.connect(self.delete)
@@ -160,7 +206,14 @@ class ParamWidget(QTableWidget):
         self.setMaximumWidth(300)
         self.itemChanged.connect(self.item_changed)
         self.clicked_item=None
+        self.previous_content=None
         self.itemClicked.connect(self.item_clicked)
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.contextMenu=None
+        self.customContextMenuRequested.connect(self.RightClickMenu)
+    
+    def RightClickMenu(self, point):
+        self.contextMenu=QParamsContextMenu(point, self.window())
     
     def actualize(self):
         item = self.window().tree_widget.active_item
@@ -178,22 +231,28 @@ class ParamWidget(QTableWidget):
             self.setItem(i,1,value)
             
     def item_changed(self, item):
-        if item.column()==1:
-            if self.clicked_item==item:
-                self.clicked_item=None
-                curve_item = self.window().tree_widget.active_item
-                curve_id = int(curve_item.data(0,0))
-                curve = SQLDatabase().get_curve(curve_id)
+        if self.clicked_item==item:
+            self.clicked_item=None
+            curve_item = self.window().tree_widget.active_item
+            curve_id = int(curve_item.data(0,0))
+            curve = SQLDatabase().get_curve(curve_id)
+            if item.column()==1:
                 curve.params[self.item(item.row(), 0).text()]=item.text()
-                curve.save()
+            elif item.column()==0:
+                curve.params[item.text()]=self.item(item.row(), 1).text()
+                curve.params.pop(self.previous_content)
+            curve.save()
+            window.tree_widget.setCurrentItem(curve_item)
     
     def item_clicked(self, item):
         self.clicked_item=item
+        self.previous_content=item.text()
 
 class TreeWidget(QTreeWidget):
     
     def __init__(self):
         super().__init__()
+        self.active_ID=None
         self.setColumnCount(3)
         self.length = np.min([SQLDatabase().get_n_keys(), N_ROW_DEFAULT])
         self.setHeaderLabels(['Id', 'Name', 'Date'])
@@ -220,7 +279,9 @@ class TreeWidget(QTreeWidget):
         self.window().row_changed.emit()
         
     def current_item_changed(self, item, previous_item):
+        print('changing active item')
         self.active_item = item
+        self.active_ID = int(item.data(0,0))
         self.window().row_changed.emit()
 
     def compute(self, first_use=False):
@@ -249,6 +310,9 @@ class TreeWidget(QTreeWidget):
                         item.setData(0,0,key)
                         item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date)))
                         item.setData(1,0, name) 
+                        if key==self.active_ID:
+                            print('found a match')
+                            self.setCurrentItem(item)
                         self.addTopLevelItem(item)
                         for child in childs:
                             keys = self.add_child(item, keys, child)  
@@ -264,6 +328,8 @@ class TreeWidget(QTreeWidget):
         child_item.setData(0,0,str(child))
         child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date)))
         child_item.setData(1,0, name)
+        if int(str(child))==self.active_ID:
+            self.setCurrentItem(child_item)
         item.addChild(child_item)
         for grandchild in childs:
             keys = self.add_child(child_item, keys, grandchild)
