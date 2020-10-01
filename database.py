@@ -254,7 +254,6 @@ class Curve:
             else:
                 self.name=""
             self.params = kwargs
-            print(self.params)
             self.childs = list([])
             self.id=None
             self.parent=None

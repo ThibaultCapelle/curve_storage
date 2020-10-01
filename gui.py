@@ -8,7 +8,7 @@ Created on Thu Dec  6 15:11:28 2018
 from PyQt5.QtWidgets import (QApplication,
 QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTableWidget, QSpinBox, QTableWidgetItem, QAbstractItemView,
-QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu)
+QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu, QPushButton, QComboBox)
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -31,7 +31,9 @@ class WindowWidget(QWidget):
         self.layout_left = QVBoxLayout()
         self.layout_center = QVBoxLayout()
         self.layout_right = QVBoxLayout()
+        self.layout_top = QHBoxLayout()
         self.plot_widget = PlotWidget()
+        
         self.layout_show_first = QHBoxLayout()
         self.layout_global.addLayout(self.layout_left)
         self.layout_global.addLayout(self.layout_center)
@@ -39,17 +41,19 @@ class WindowWidget(QWidget):
         self.layout_left.addLayout(self.layout_show_first)
         self.spinbox_widget = SpinBoxWidget()
         self.tree_widget = TreeWidget()
+        self.plot_options = plotOptions(self.tree_widget)
         self.param_widget = ParamWidget(self.layout)
         self.layout_right.addWidget(self.param_widget)
         self.show_first_label = QLabel('show first')
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
         self.layout_show_first.addWidget(self.show_first_label)
-
+        self.layout_center.addLayout(self.layout_top)
+        self.layout_top.addWidget(self.plot_options)
         self.layout_center.addWidget(self.plot_widget)
         self.directory_button = DirectoryButton(self.tree_widget)
         self.directory_button.clicked.connect(self.directory_button.action)
-        self.layout_right.addWidget(self.directory_button)
+        self.layout_center.addWidget(self.directory_button)
         
         self.spinbox_changed.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
@@ -72,6 +76,12 @@ class WindowWidget(QWidget):
     def resizeEvent(self, event):
         self.tree_widget.move()
 
+class plotOptions(QComboBox):
+    
+    def __init__(self, treewidget):
+        super().__init__()
+        self.treewidget=treewidget
+        self.addItems(['Real', 'Imaginary', 'dB', 'Smith'])
 
 
 class DirectoryButton(QPushButton):
@@ -90,13 +100,12 @@ class DirectoryButton(QPushButton):
             self.setText('Go to directory')
     
     def startfile(self,filename):
-      try:
-        os.startfile(filename)
-      except:
-        subprocess.Popen(['xdg-open', filename])
+        try:
+            os.startfile(filename)
+        except:
+            subprocess.Popen(['xdg-open', filename])
     
     def action(self):
-        print('action')
         curve = SQLDatabase().get_curve(self.current_id)
         self.setText('Go to directory')
         if not curve.exist_directory():
@@ -145,7 +154,6 @@ class QTreeContextMenu(QMenu):
 
         for item in selection:
             curve_id=item.data(0,0)
-            print(curve_id)
             SQLDatabase().delete_entry(curve_id)
         
        
@@ -158,10 +166,10 @@ class ParamWidget(QTableWidget):
         self.setHorizontalHeaderLabels(['Param', 'Value'])
         self.verticalHeader().setVisible(False)
         self.setMaximumWidth(300)
-        self.itemChanged.connect(self.item_changed)
+        #self.itemChanged.connect(self.item_changed)
         self.clicked_item=None
         self.previous_content=None
-        self.itemClicked.connect(self.item_clicked)
+        #self.itemClicked.connect(self.item_clicked)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
@@ -261,7 +269,6 @@ class TreeWidget(QTreeWidget):
         self.contextMenu=QTreeContextMenu(item)
         
     def current_item_changed(self, item, previous_item):
-        print('changing active item')
         self.active_item = item
         self.active_ID = int(item.data(0,0))
         self.window().row_changed.emit()
@@ -293,7 +300,6 @@ class TreeWidget(QTreeWidget):
                         item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date)))
                         item.setData(1,0, name) 
                         if key==self.active_ID:
-                            print('found a match')
                             self.setCurrentItem(item)
                         self.addTopLevelItem(item)
                         for child in childs:
@@ -341,8 +347,20 @@ class PlotWidget(pg.PlotWidget):
         curve_id = int(item.data(0,0))
         curve = SQLDatabase().get_curve(curve_id)
         self.getPlotItem().clear()
-        self.getPlotItem().plot(curve.x, curve.y)
         
+        state=self.window().plot_options.currentText()
+        if state=='dB':
+            self.getPlotItem().plot(curve.x, np.abs(curve.y))
+            self.getPlotItem().setLogMode(x=False, y=True)
+        elif state=='Real':
+            self.getPlotItem().plot(curve.x, np.real(curve.y))
+            self.getPlotItem().setLogMode(x=False, y=False)
+        elif state=='Imaginary':
+            self.getPlotItem().plot(curve.x, np.imag(curve.y))
+            self.getPlotItem().setLogMode(x=False, y=False)
+        elif state=='Smith':
+            self.getPlotItem().plot(np.real(curve.y), np.imag(curve.y))
+            self.getPlotItem().setLogMode(x=False, y=False)
         
         
         
