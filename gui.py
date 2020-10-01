@@ -12,7 +12,7 @@ QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu, QPushButton)
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-import sys, time, os
+import sys, time, os, subprocess
 from curve_storage.database import Curve, SQLDatabase
 import pyqtgraph as pg
 import numpy as np
@@ -29,27 +29,32 @@ class WindowWidget(QWidget):
         super().__init__()
         self.layout_global = QHBoxLayout()
         self.layout_left = QVBoxLayout()
+        self.layout_center = QVBoxLayout()
         self.layout_right = QVBoxLayout()
         self.plot_widget = PlotWidget()
         self.directory_button=QDirectoryButton()
         self.layout_show_first = QHBoxLayout()
         self.layout_global.addLayout(self.layout_left)
+        self.layout_global.addLayout(self.layout_center)
         self.layout_global.addLayout(self.layout_right)
         self.layout_left.addLayout(self.layout_show_first)
         self.spinbox_widget = SpinBoxWidget()
         self.tree_widget = TreeWidget()
         self.param_widget = ParamWidget(self.layout)
-        self.layout_global.addWidget(self.param_widget)
+        self.layout_right.addWidget(self.param_widget)
         self.show_first_label = QLabel('show first')
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
         self.layout_show_first.addWidget(self.show_first_label)
-        self.layout_right.addWidget(self.plot_widget)
+        self.layout_center.addWidget(self.plot_widget)
+        self.directory_button = DirectoryButton(self.tree_widget)
+        self.directory_button.clicked.connect(self.directory_button.action)
         self.layout_right.addWidget(self.directory_button)
+        
         self.spinbox_changed.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
         self.row_changed.connect(self.param_widget.actualize)
-        self.row_changed.connect(self.directory_button.actualize)
+        self.row_changed.connect(self.directory_button.update)
         self.database_changed.directoryChanged.connect(self.tree_widget.compute)
         self.spinbox_widget.setValue(20)
         self.setLayout(self.layout_global)
@@ -67,82 +72,36 @@ class WindowWidget(QWidget):
     def resizeEvent(self, event):
         self.tree_widget.move()
 
-class QDirectoryButton(QPushButton):
-    
-    def __init__(self):
-        super().__init__()
-        self.clicked.connect(self.execute)
-        self.setHidden(True)
-    
-    def actualize(self, curve=None):
-        selected_items=self.window().tree_widget.selectedItems()
-        if len(selected_items)==1:
-            self.setVisible(True)
-            if curve is None:
-                item = self.window().tree_widget.active_item
-                curve_id = int(item.data(0,0))
-                curve = SQLDatabase().get_curve(curve_id)
-            if not curve.exist_directory():
-                self.setText("Create directory")
-            else:
-                self.setText("Open directory")
-        else:
-            self.setHidden(True)
-    
-    def execute(self):
-        item = self.window().tree_widget.active_item
-        curve_id = int(item.data(0,0))
-        curve = SQLDatabase().get_curve(curve_id)
-        path=curve.get_or_create_dir()
-        if self.text()=="Open directory":
-            os.startfile(os.path.realpath(path))
-        self.actualize(curve=curve)
 
-class QParamsContextMenu(QMenu):
-    
-    def __init__(self, point, window):
+class DirectoryButton(QPushButton):
+
+    def __init(self, treewidget):
         super().__init__()
-        self.point=point
-        self._window=window
-        self.param_widget=self._window.param_widget
-        #self.header_position=self.item.treeWidget().header().geometry()
-        #self.layout_position=self.window().layout_right.geometry()
-        #print(self.layout_position)
-        self.setGeometry(self.point.x(), self.point.y(),
-                         self.width(), self.height())
-        self.setGeometry(self.geometry().
-                         translated(self.param_widget.
-                                    geometry().topLeft()))
-        self.add_action=self.addAction("add parameter")
-        self.add_action.triggered.connect(self.add_param)
-        self.height=self.geometry().height()
-        self.setVisible(True)
-        self.show()
+        self.treewidget=treewidget
+        self.current_id=None
+
+    def update(self):
+        self.current_id=self.window().tree_widget.active_item.data(0,0)
+        curve = SQLDatabase().get_curve(self.current_id)
+        if not curve.exist_directory():
+            self.setText('Create directory')
+        else:
+            self.setText('Go to directory')
     
-    def add_param(self):
-        item = self._window.tree_widget.active_item
-        curve_id = int(item.data(0,0))
-        curve = SQLDatabase().get_curve(curve_id)
-        self.param_widget.setHorizontalHeaderLabels(['Param', 'Value'])
-        self.param_widget.setColumnCount(2)
-        self.param_widget.setHorizontalHeaderLabels(['Param', 'Value'])
-        self.param_widget.verticalHeader().setVisible(False)
-        self.param_widget.setMaximumWidth(300)
-        i=len(curve.params.keys())
-        self.param_widget.setRowCount(i+1)
-        for j,(k, v) in enumerate(curve.params.items()):
-            key = QTableWidgetItem()
-            key.setText(k)
-            self.param_widget.setItem(j,0,key)
-            value = QTableWidgetItem()
-            value.setText(str(v))
-            self.param_widget.setItem(j,1,value)
-        key = QTableWidgetItem() 
-        key.setText('new_param')
-        self.param_widget.setItem(i,0,key)
-        key = QTableWidgetItem() 
-        key.setText('new_value')
-        self.param_widget.setItem(i,1,key)
+    def startfile(self,filename):
+      try:
+        os.startfile(filename)
+      except:
+        subprocess.Popen(['xdg-open', filename])
+    
+    def action(self):
+        print('action')
+        curve = SQLDatabase().get_curve(self.current_id)
+        self.setText('Go to directory')
+        if not curve.exist_directory():
+            curve.get_or_create_dir()
+        else:
+            self.startfile(curve.get_or_create_dir())
         
 class QTreeContextMenu(QMenu):
     
@@ -180,19 +139,11 @@ class QTreeContextMenu(QMenu):
     def delete(self):
         next_item=None
         self.selected_items=self.tree_widget.selectedItems()
-        selection=self.selected_items.copy()
-        while((len(selection)>0) and ((next_item is None) or (next_item in self.selected_items))):
-            item=selection.pop()
-            next_item=self.tree_widget.itemBelow(item)
-            if(next_item is None):
-                next_item=self.tree_widget.itemAbove(item)
-        for item in self.selected_items:
+        selection=self.selected_items
+        for item in selection:
             curve_id=item.data(0,0)
+            print(curve_id)
             SQLDatabase().delete_entry(curve_id)
-        self.setVisible(False)
-        if next_item is not None:
-            self.tree_widget.setCurrentItem(next_item)
-            next_item.setSelected(1)
         
        
 class ParamWidget(QTableWidget):
@@ -229,24 +180,56 @@ class ParamWidget(QTableWidget):
             value = QTableWidgetItem()
             value.setText(str(v))
             self.setItem(i,1,value)
-            
-    def item_changed(self, item):
-        if self.clicked_item==item:
-            self.clicked_item=None
-            curve_item = self.window().tree_widget.active_item
-            curve_id = int(curve_item.data(0,0))
-            curve = SQLDatabase().get_curve(curve_id)
-            if item.column()==1:
-                curve.params[self.item(item.row(), 0).text()]=item.text()
-            elif item.column()==0:
-                curve.params[item.text()]=self.item(item.row(), 1).text()
-                curve.params.pop(self.previous_content)
-            curve.save()
-            window.tree_widget.setCurrentItem(curve_item)
     
-    def item_clicked(self, item):
-        self.clicked_item=item
-        self.previous_content=item.text()
+    def mousePressEvent(self, event):
+        if event.button()==QtCore.Qt.RightButton:
+            current_id=self.window().tree_widget.active_item.data(0,0)
+            if current_id is not None:
+                pass
+    
+    def contextMenuEvent(self, event):
+        current_id=self.window().tree_widget.active_item.data(0,0)
+        if current_id is not None:
+            self.menu = QMenu(self)
+            addParamAction = self.menu.addAction("add new parameter")
+            action = self.menu.exec_(self.mapToGlobal(event.pos()))
+            if action == addParamAction:
+                self.new_param_menu()
+                self.menu.close()
+                
+    def new_param_menu(self):
+        self.new_param_window=QWidget(self.window())
+        self.new_param_layout=QHBoxLayout(self.new_param_window)
+        self.name_layout=QVBoxLayout(self.new_param_window)
+        self.name_text=QLabel('Name')
+        self.name_text.setStyleSheet("QLabel { background-color : white; color : black; }")
+        self.name_layout.addWidget(self.name_text)
+        self.name_box=QLineEdit(self.new_param_window)
+        self.name_layout.addWidget(self.name_box)
+        self.new_param_layout.addLayout(self.name_layout)
+        self.new_param_window.setLayout(self.new_param_layout)
+        self.new_param_window.setGeometry(QRect(500, 250, 300, 100))
+        self.param_layout=QVBoxLayout(self.new_param_window)
+        self.param_text=QLabel('param')
+        self.param_text.setStyleSheet("QLabel { background-color : white; color : black; }")
+        self.param_layout.addWidget(self.param_text)
+        self.param_box=QLineEdit(self.new_param_window)
+        self.param_layout.addWidget(self.param_box)
+        self.new_param_layout.addLayout(self.param_layout)
+        self.button=QPushButton()
+        self.button.setText('add new parameter')
+        self.button.clicked.connect(self.get_new_param)
+        self.new_param_layout.addWidget(self.button)
+        self.new_param_window.show()
+    
+    def get_new_param(self):
+        name, param = self.name_box.text(), self.param_box.text()
+        current_id=self.window().tree_widget.active_item.data(0,0)
+        curve=SQLDatabase().get_curve(current_id)
+        curve.params[name]=param
+        curve.save()
+        self.new_param_window.close()
+        
 
 class TreeWidget(QTreeWidget):
     

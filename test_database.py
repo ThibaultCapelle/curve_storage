@@ -7,10 +7,14 @@ Created on Thu Dec  6 11:17:28 2018
 
 from curve_storage.database import Curve, SQLDatabase
 import numpy as np
-import os, shutil
+import os, shutil, sys
 
-database_path = os.path.join(os.environ['HOMEPATH'],'.database')
-data_path = r'C:\Users\Thibault\Documents\phd\python\Database_test'
+if sys.platform!='linux':
+    database_path = os.path.join(os.environ['HOMEPATH'],'.database')
+    data_path = os.path.join(os.environ['HOMEPATH'], 'Documents', 'Database_test')
+else:
+    database_path = os.path.join(os.environ['HOME'],'.database')
+    data_path = os.path.join(os.environ['HOME'], 'Documents', 'Database_test')
 
 import unittest
 

@@ -1,7 +1,7 @@
 import os, json, time, shutil
 from datetime import datetime
 import numpy as np
-import h5py
+import h5py, sys
 import sqlite3
 import warnings
 
@@ -12,8 +12,13 @@ class SQLDatabase():
     first_instance = True
     instances = []
     highest_key = None
-    DATA_LOCATION = r'C:\Users\Thibault\Documents\phd\python\Database_test'
-    DATABASE_LOCATION = os.path.join(os.environ['HOMEPATH'], '.database')
+    DATA_LOCATION = os.path.join(os.environ['HOME'], 'Documents/Database_test')
+    if not os.path.exists(DATA_LOCATION):
+        os.mkdir(DATA_LOCATION)
+    if sys.platform!='linux':
+        DATABASE_LOCATION = os.path.join(os.environ['HOMEPATH'], '.database')
+    else:
+        DATABASE_LOCATION = os.path.join(os.environ['HOME'], '.database')
     DATABASE_NAME = 'database.db'
     
     def __init__(self, data_location=DATA_LOCATION):
@@ -22,7 +27,10 @@ class SQLDatabase():
             assert self.__class__.highest_key is not None
         else:
             self.__class__.first_instance=False
-            os.chdir(os.environ['HOMEPATH'])
+            if sys.platform!='linux':
+                os.chdir(os.environ['HOMEPATH'])
+            else:
+                os.chdir(os.environ['HOME'])
             if not '.database' in os.listdir():
                 os.mkdir('.database')
             os.chdir('.database')
@@ -147,7 +155,10 @@ class SQLDatabase():
         if len(curve.childs)>0:
             curve.childs=[int(i) for i in curve.childs]
         self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=?, params=? WHERE id=?''',
-                            (curve.name, json.dumps(curve.childs), int(curve.parent), json.dumps(curve.params), int(curve.id)))
+                            (curve.name, json.dumps(curve.childs),
+                             int(curve.parent),
+                             json.dumps(curve.params), 
+                             int(curve.id)))
         self.db.commit()
     
     def delete_entry(self, curve_id):
@@ -189,7 +200,7 @@ class SQLDatabase():
         return float(self.cursor.fetchone()[0])
 
     def get_folder_from_date(self, date):
-        path = os.path.join(self.data_location,time.strftime("%Y\%m\%d",time.gmtime(date)))
+        path = os.path.join(self.data_location,time.strftime("%Y/%m/%d",time.gmtime(date)))
         if not os.path.exists(path):
             os.makedirs(path)
         assert os.path.exists(path)
@@ -197,7 +208,7 @@ class SQLDatabase():
         
     def get_folder_from_id(self, id):
         t = self.get_time_from_id(id)
-        path = os.path.join(self.data_location,time.strftime("%Y\%m\%d",time.gmtime(t)))
+        path = os.path.join(self.data_location,time.strftime("%Y/%m/%d",time.gmtime(t)))
         assert os.path.exists(path)
         return path
     
@@ -246,6 +257,7 @@ class Curve:
             else:
                 self.name=""
             self.params = kwargs
+            print(self.params)
             self.childs = list([])
             self.id=None
             self.parent=None
@@ -264,6 +276,10 @@ class Curve:
         child = self.database.get_curve(child_id)
         child.parent=child_id
         self.childs.remove(child_id)
+        self.save()
+    
+    def set_name(self, name):
+        self.name=name
         self.save()
         
     def has_parent(self):
@@ -290,8 +306,11 @@ class Curve:
         self.parent=curve.parent
         self.database=curve.database
         self.directory=curve.directory
+        self.directory=self.directory
         
     def get_or_create_dir(self):
+        if not str(self.id) in os.listdir(self.directory):
+            os.mkdir(os.path.join(self.directory,str(self.id)))
         path = os.path.join(self.directory, str(self.id))
         if not os.path.exists(path):
             os.mkdir(path)
@@ -303,7 +322,10 @@ class Curve:
 
 if __name__=='__main__':
     
-    os.chdir(os.environ['HOMEPATH'])
+    if sys.platform!='linux':
+        os.chdir(os.environ['HOMEPATH'])
+    else:
+        os.chdir(os.environ['HOME'])
     if not '.database' in os.listdir():
         os.mkdir('.database')
     os.chdir('.database')
