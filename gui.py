@@ -156,7 +156,21 @@ class QTreeContextMenu(QMenu):
         for item in selection:
             curve_id=item.data(0,0)
             SQLDatabase().delete_entry(curve_id)
-        
+
+class QParamsContextMenu(QMenu):
+    
+    def __init__(self, point, window):
+        super().__init__()
+        self.window=window
+        self.add_param_action=self.addAction("Add param")
+        self.setVisible(True)
+        self.show()
+        self.window_position=self.window.geometry()
+        #self.header_position=self.item.treeWidget().header().geometry()
+        self.setFixedSize(100, 25)
+        self.setGeometry(self.window_position.
+                         translated(point)
+                         .translated(self.window.param_widget.geometry().topLeft()))
        
 class ParamWidget(QTableWidget):
     
@@ -196,9 +210,11 @@ class ParamWidget(QTableWidget):
     
     def mousePressEvent(self, event):
         if event.button()==QtCore.Qt.RightButton:
-            current_id=self.window().tree_widget.active_item.data(0,0)
-            if current_id is not None:
-                pass
+            tree = self.window().tree_widget
+            if hasattr(tree, "active_item") and tree.active_item is not None:
+                current_id=self.window().tree_widget.active_item.data(0,0)
+                if current_id is not None:
+                    pass
     
     def contextMenuEvent(self, event):
         current_id=self.window().tree_widget.active_item.data(0,0)
