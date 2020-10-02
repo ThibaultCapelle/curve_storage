@@ -4,6 +4,10 @@ import numpy as np
 import h5py, sys
 import sqlite3
 
+if not sys.platform=='linux':
+    ROOT=os.environ['USERPROFILE']
+else:
+    ROOT=os.environ['HOME']
 
 
 class SQLDatabase():
@@ -11,14 +15,13 @@ class SQLDatabase():
     first_instance = True
     instances = []
     highest_key = None
-    DATA_LOCATION = os.path.join(os.environ['HOMEPATH'], 'Documents/Database_test')
-    if not os.path.exists(DATA_LOCATION):
-        os.mkdir(DATA_LOCATION)
-    if sys.platform!='linux':
-        DATABASE_LOCATION = os.path.join(os.environ['HOMEPATH'], '.database')
-    else:
-        DATABASE_LOCATION = os.path.join(os.environ['HOME'], '.database')
-    DATABASE_NAME = 'database.db'
+    CONFIG_LOCATION = ROOT
+    assert 'database_config.json' in os.listdir(CONFIG_LOCATION)
+    with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'r') as f:
+        res=json.load(f)
+        DATA_LOCATION=res['DATA_LOCATION']
+        DATABASE_LOCATION=res['DATABASE_LOCATION']
+        DATABASE_NAME = res['DATABASE_NAME']
     
     def __init__(self, data_location=DATA_LOCATION):
         if not self.__class__.first_instance:
@@ -26,20 +29,17 @@ class SQLDatabase():
             assert self.__class__.highest_key is not None
         else:
             self.__class__.first_instance=False
-            if sys.platform!='linux':
-                os.chdir(os.environ['HOMEPATH'])
-            else:
-                os.chdir(os.environ['HOME'])
-            if not '.database' in os.listdir():
-                os.mkdir('.database')
-            os.chdir('.database')
-            self.db=sqlite3.connect(SQLDatabase.DATABASE_NAME)
+            if not '.database' in os.listdir(ROOT):
+                os.mkdir(os.path.join(ROOT,'.database'))
+            self.db=sqlite3.connect(os.path.join(SQLDatabase.DATABASE_LOCATION,
+                                                 SQLDatabase.DATABASE_NAME))
             if not self.is_table_created():
                 self.create_table()
             self.__class__.instances.append(self.db)
             self.__class__.highest_key=self.get_highest_key()
         self.data_location=data_location
-        self.db=sqlite3.connect(SQLDatabase.DATABASE_NAME)
+        self.db=sqlite3.connect(os.path.join(SQLDatabase.DATABASE_LOCATION,
+                                                 SQLDatabase.DATABASE_NAME))
 
     
     def get_all_ids(self):

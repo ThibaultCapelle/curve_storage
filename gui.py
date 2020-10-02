@@ -92,12 +92,13 @@ class DirectoryButton(QPushButton):
         self.current_id=None
 
     def update(self):
-        self.current_id=self.window().tree_widget.active_item.data(0,0)
-        curve = SQLDatabase().get_curve(self.current_id)
-        if not curve.exist_directory():
-            self.setText('Create directory')
-        else:
-            self.setText('Go to directory')
+        if self.window().tree_widget.active_item is not None:
+            self.current_id=self.window().tree_widget.active_item.data(0,0)
+            curve = SQLDatabase().get_curve(self.current_id)
+            if not curve.exist_directory():
+                self.setText('Create directory')
+            else:
+                self.setText('Go to directory')
     
     def startfile(self,filename):
         try:
@@ -179,18 +180,19 @@ class ParamWidget(QTableWidget):
     
     def actualize(self):
         item = self.window().tree_widget.active_item
-        curve_id = int(item.data(0,0))
-        curve = SQLDatabase().get_curve(curve_id)
-        self.clear()
-        self.setHorizontalHeaderLabels(['Param', 'Value'])
-        self.setRowCount(len(curve.params.keys()))
-        for i,(k, v) in enumerate(curve.params.items()):
-            key = QTableWidgetItem()
-            key.setText(k)
-            self.setItem(i,0,key)
-            value = QTableWidgetItem()
-            value.setText(str(v))
-            self.setItem(i,1,value)
+        if item is not None:
+            curve_id = int(item.data(0,0))
+            curve = SQLDatabase().get_curve(curve_id)
+            self.clear()
+            self.setHorizontalHeaderLabels(['Param', 'Value'])
+            self.setRowCount(len(curve.params.keys()))
+            for i,(k, v) in enumerate(curve.params.items()):
+                key = QTableWidgetItem()
+                key.setText(k)
+                self.setItem(i,0,key)
+                value = QTableWidgetItem()
+                value.setText(str(v))
+                self.setItem(i,1,value)
     
     def mousePressEvent(self, event):
         if event.button()==QtCore.Qt.RightButton:
@@ -270,7 +272,10 @@ class TreeWidget(QTreeWidget):
         
     def current_item_changed(self, item, previous_item):
         self.active_item = item
-        self.active_ID = int(item.data(0,0))
+        if item is not None:
+            self.active_ID = int(item.data(0,0))
+        else:
+            self.active_ID=None
         self.window().row_changed.emit()
 
     def compute(self, first_use=False):
@@ -344,23 +349,24 @@ class PlotWidget(pg.PlotWidget):
         
     def plot(self):
         item = self.window().tree_widget.active_item
-        curve_id = int(item.data(0,0))
-        curve = SQLDatabase().get_curve(curve_id)
-        self.getPlotItem().clear()
-        
-        state=self.window().plot_options.currentText()
-        if state=='dB':
-            self.getPlotItem().plot(curve.x, np.abs(curve.y))
-            self.getPlotItem().setLogMode(x=False, y=True)
-        elif state=='Real':
-            self.getPlotItem().plot(curve.x, np.real(curve.y))
-            self.getPlotItem().setLogMode(x=False, y=False)
-        elif state=='Imaginary':
-            self.getPlotItem().plot(curve.x, np.imag(curve.y))
-            self.getPlotItem().setLogMode(x=False, y=False)
-        elif state=='Smith':
-            self.getPlotItem().plot(np.real(curve.y), np.imag(curve.y))
-            self.getPlotItem().setLogMode(x=False, y=False)
+        if item is not None:
+            curve_id = int(item.data(0,0))
+            curve = SQLDatabase().get_curve(curve_id)
+            self.getPlotItem().clear()
+            
+            state=self.window().plot_options.currentText()
+            if state=='dB':
+                self.getPlotItem().plot(curve.x, np.abs(curve.y))
+                self.getPlotItem().setLogMode(x=False, y=True)
+            elif state=='Real':
+                self.getPlotItem().plot(curve.x, np.real(curve.y))
+                self.getPlotItem().setLogMode(x=False, y=False)
+            elif state=='Imaginary':
+                self.getPlotItem().plot(curve.x, np.imag(curve.y))
+                self.getPlotItem().setLogMode(x=False, y=False)
+            elif state=='Smith':
+                self.getPlotItem().plot(np.real(curve.y), np.imag(curve.y))
+                self.getPlotItem().setLogMode(x=False, y=False)
         
         
         
@@ -372,7 +378,6 @@ window = WindowWidget()
 curve_1=Curve([0,1,2,3])
 curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
 
-#app.exec_()
-
+sys.exit(app.exec_())
 
 
