@@ -1,8 +1,8 @@
 import os, json, time, shutil
-from datetime import datetime
 import numpy as np
 import h5py, sys
 import sqlite3
+import traceback
 
 if not sys.platform=='linux':
     ROOT=os.environ['USERPROFILE']
@@ -62,7 +62,17 @@ class SQLDatabase():
             return np.array(self.cursor.fetchall()).max()
         except ValueError:
             return 0
-        
+    
+    def get_all_hierarchy(self):
+        self.get_cursor()
+        self.cursor.execute('''SELECT id, childs, parent FROM data''')
+        return self.cursor.fetchall()
+    
+    def get_name_and_time(self, curve_id):
+        self.get_cursor()
+        self.cursor.execute('''SELECT name, date FROM data WHERE id=?''', (int(curve_id),))
+        return self.cursor.fetchone()
+    
     def get_cursor(self):
         try:
             self.cursor=self.db.cursor()
@@ -82,11 +92,22 @@ class SQLDatabase():
     
     def create_table(self):
         self.get_cursor()
-        self.cursor.execute('''
-                       CREATE TABLE data(id INTEGER PRIMARY KEY, name TEXT,
-                       date FLOAT, childs TEXT, parent INTEGER, params TEXT)
-                       ''')
-        self.db.commit()
+        self.db.isolation_level='IMMEDIATE'
+        try:
+            self.cursor.execute('''
+                           CREATE TABLE data(id INTEGER PRIMARY KEY, name TEXT,
+                           date FLOAT, childs TEXT, parent INTEGER)
+                           ''')
+            self.db.commit()
+        except sqlite3.Error as er:
+            print('SQLite error: %s' % (' '.join(er.args)))
+            print("Exception class is: ", er.__class__)
+            print('SQLite traceback: ')
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            print(traceback.format_exception(exc_type, exc_value, exc_tb))
+        finally:
+            self.db.isolation_level=None
+        
     
     def save(self, curve):
         if curve.id is None:
@@ -106,59 +127,115 @@ class SQLDatabase():
             curve.date=time.time()
         if curve.parent is None:
             curve.parent=curve.id
-        self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, params)
-                  VALUES(?,?,?,?,?,?)''',
-                  (int(curve_id),
-                  curve.name,
-                  float(curve.date),
-                  json.dumps(curve.childs),
-                  int(curve.parent),
-                  json.dumps(curve.params)))
-        self.db.commit()
+        self.db.isolation_level='IMMEDIATE'
+        try:
+            self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent)
+                      VALUES(?,?,?,?,?)''',
+                      (int(curve_id),
+                      curve.name,
+                      float(curve.date),
+                      json.dumps(curve.childs),
+                      int(curve.parent)))
+            self.db.commit()
+        except sqlite3.Error as er:
+            print('SQLite error: %s' % (' '.join(er.args)))
+            print("Exception class is: ", er.__class__)
+            print('SQLite traceback: ')
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            print(traceback.format_exception(exc_type, exc_value, exc_tb))
+            self.db.isolation_level=None
         curve.directory = self.get_folder_from_date(curve.date)
         curve.parent = curve_id
+    
+    def extract_dictionary(self, res, obj):
+        for key, val in obj.items():
+            if val=='NONE':
+                res[key]=None
+            elif isinstance(val, str) and val.startswith('{'):
+                res[key]=json.loads(val)
+            else:
+                res[key]=val
+        return res
     
     def get_curve(self, curve_id):
         assert self.exists(curve_id)
         self.get_cursor()
-        self.cursor.execute('''SELECT name, date, childs, parent, params FROM data WHERE id=?''', (int(curve_id),))
+        self.cursor.execute('''SELECT name, date, childs, parent FROM data WHERE id=?''', (int(curve_id),))
         res = self.cursor.fetchone()
         name = res[0]
         date = float(res[1])
         childs = json.loads(res[2])
         parent = int(res[3])
-        params = json.loads(res[4])
+        params = dict()
         directory=self.get_folder_from_date(date)
         if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
-                with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
-                    data=f['data']
-                    x=data[0]
-                    y=data[1]
-        return Curve(curve_id, x, y, database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
-    
+            with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
+                data=f['data']
+                x=data[0]
+                y=data[1]
+                params=self.extract_dictionary(params, data.attrs)
+            return Curve(curve_id, x, y, database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
+        else:
+            return Curve(curve_id, [], [], database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
+
     def get_curve_metadata(self, curve_id):
-        assert self.exists(curve_id)
-        self.get_cursor()
-        self.cursor.execute('''SELECT name, date, childs, parent, params FROM data WHERE id=?''', (int(curve_id),))
-        res = self.cursor.fetchone()
-        name = res[0]
-        date = float(res[1])
-        childs = json.loads(res[2])
-        parent = int(res[3])
-        params = json.loads(res[4])
-        return name, date, childs, parent, params
+        if self.exists(curve_id):
+            self.get_cursor()
+            self.cursor.execute('''SELECT name, date, childs, parent FROM data WHERE id=?''', (int(curve_id),))
+            res = self.cursor.fetchone()
+            name = res[0]
+            date = float(res[1])
+            childs = json.loads(res[2])
+            parent = int(res[3])
+            return name, date, childs, parent
+        else:
+            return None
+    
+    def get_params(self, curve_id):
+        if self.exists(curve_id):
+            folder=self.get_folder_from_id(curve_id)
+            try:
+                res=dict()
+                with open(os.path.join(folder, '{:}.h5'), 'r') as f:
+                    res=self.extract_dictionary(res, f['data'].attrs)
+                return res
+            except OSError:
+                print('a data file could not be opened')
+                return None
+        else:
+            return None
+    
+    def get_childs(self, curve_id):
+        if self.exists(curve_id):
+            self.get_cursor()
+            self.cursor.execute('''SELECT childs FROM data WHERE id=?''', (int(curve_id),))
+            res = self.cursor.fetchone()
+            childs = json.loads(res[0])
+            return childs
+        else:
+            return None
+    
     
     def update_entry(self, curve):
         assert self.exists(curve.id)
         self.get_cursor()
         if len(curve.childs)>0:
             curve.childs=[int(i) for i in curve.childs]
-        self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=?, params=? WHERE id=?''',
-                            (curve.name, json.dumps(curve.childs),
-                             int(curve.parent),
-                             json.dumps(curve.params), 
-                             int(curve.id)))
-        self.db.commit()
+        self.db.isolation_level='IMMEDIATE'
+        try:
+            self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=? WHERE id=?''',
+                                (curve.name, json.dumps(curve.childs),
+                                 int(curve.parent), 
+                                 int(curve.id)))
+            self.db.commit()
+        except sqlite3.Error as er:
+            print('SQLite error: %s' % (' '.join(er.args)))
+            print("Exception class is: ", er.__class__)
+            print('SQLite traceback: ')
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            print(traceback.format_exception(exc_type, exc_value, exc_tb))
+        finally:
+            self.db.isolation_level=None
     
     def delete_entry(self, curve_id):
         curve = self.get_curve(curve_id)
@@ -167,9 +244,6 @@ class SQLDatabase():
         if curve.has_parent():
             parent = self.get_curve(curve.parent)
             parent.remove_child(curve_id)
-        self.get_cursor()
-        self.cursor.execute('''DELETE FROM data WHERE id=?''',
-                            (int(curve_id),))
         filename=os.path.join(curve.directory, '{:}.h5'.format(curve_id))
         if(os.path.exists(filename)):
             os.remove(filename)
@@ -180,8 +254,22 @@ class SQLDatabase():
         while((len(os.listdir(directory))==0)&(directory!=SQLDatabase.DATA_LOCATION)):
             os.rmdir(directory)
             directory=os.path.split(directory)[0]
-        #curve.delete(delete_from_database=False)
-        self.db.commit() 
+        self.get_cursor()
+        self.db.isolation_level='IMMEDIATE'
+        try:
+            self.cursor.execute('''DELETE FROM data WHERE id=?''',
+                                (int(curve_id),))
+            
+            #curve.delete(delete_from_database=False)
+            self.db.commit() 
+        except sqlite3.Error as er:
+            print('SQLite error: %s' % (' '.join(er.args)))
+            print("Exception class is: ", er.__class__)
+            print('SQLite traceback: ')
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            print(traceback.format_exception(exc_type, exc_value, exc_tb))
+        finally:
+            self.db.isolation_level=None
     
     def __del__(self):
         self.close()
@@ -226,7 +314,19 @@ class Curve:
             self.database=kwargs.pop('database')
         else:
             self.database=SQLDatabase()
-        if len(args)==1 and np.isscalar(args[0]):
+        if len(args)==0:
+            self.x, self.y= np.array([]), np.array([])
+            if 'name' in kwargs:
+                self.name=kwargs.pop('name')
+            else:
+                self.name=""
+            self.params = kwargs
+            self.childs = list([])
+            self.id=None
+            self.parent=None
+            if 'not_saved' not in kwargs.keys() or kwargs['not_saved'] is False:
+                self.save() 
+        elif len(args)==1 and np.isscalar(args[0]):
             self.copy(self.database.get_curve(args[0]))
         elif len(args)==3:
             self.id=args[0]
@@ -265,13 +365,21 @@ class Curve:
     def save(self):
         self.database.save(self)
         with h5py.File(os.path.join(self.directory, '{:}.h5'.format(self.id)), 'w') as f:
-            f.create_dataset('data', data=np.vstack((self.x, self.y)))
+            data=f.create_dataset('data', data=np.vstack((self.x, self.y)))
+            for key, val in self.params.items():
+                if val is None:
+                    data.attrs[key]='NONE'
+                elif isinstance(val, dict):
+                    data.attrs[key]=json.dumps(val)
+                else:
+                    data.attrs[key]=val
+                
     
     def remove_child(self, child_id):
-        assert child_id in self.childs
-        child = self.database.get_curve(child_id)
-        child.parent=child_id
-        self.childs.remove(child_id)
+        if child_id in self.childs:
+            child = self.database.get_curve(child_id)
+            child.parent=child_id
+            self.childs.remove(child_id)
         self.save()
     
     def set_name(self, name):

@@ -16,14 +16,17 @@ import sys, time, os, subprocess
 from curve_storage.database import Curve, SQLDatabase
 import pyqtgraph as pg
 import numpy as np
+import json
 
 N_ROW_DEFAULT=20
 
 class WindowWidget(QWidget):
     
     spinbox_changed = QtCore.Signal()
-    database_changed = QtCore.QFileSystemWatcher([SQLDatabase.DATABASE_LOCATION])
+    '''database_changed = QtCore.QFileSystemWatcher([os.path.join(SQLDatabase.DATABASE_LOCATION,
+                                                               SQLDatabase.DATABASE_NAME)])'''
     row_changed = QtCore.Signal()
+    
     
     def __init__(self):
         super().__init__()
@@ -45,9 +48,11 @@ class WindowWidget(QWidget):
         self.param_widget = ParamWidget(self.layout)
         self.layout_right.addWidget(self.param_widget)
         self.show_first_label = QLabel('show first')
+        self.compute_button = QPushButton('update')
+        self.layout_show_first.addWidget(self.show_first_label)
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
-        self.layout_show_first.addWidget(self.show_first_label)
+        self.layout_show_first.addWidget(self.compute_button)
         self.layout_center.addLayout(self.layout_top)
         self.layout_top.addWidget(self.plot_options)
         self.layout_center.addWidget(self.plot_widget)
@@ -56,17 +61,19 @@ class WindowWidget(QWidget):
         self.layout_center.addWidget(self.directory_button)
         
         self.spinbox_changed.connect(self.tree_widget.compute)
+        self.compute_button.clicked.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
         self.row_changed.connect(self.param_widget.actualize)
         self.row_changed.connect(self.directory_button.update)
-        self.database_changed.directoryChanged.connect(self.tree_widget.compute)
+        self.changing_tree=False
+        #self.database_changed.fileChanged.connect(self.database_changed_slot)
         self.spinbox_widget.setValue(20)
         self.setLayout(self.layout_global)
         self.setGeometry(QRect(0, 0, 1000, 600))
         self.setMaximumHeight(600)
         self.show()
         self.move(0,0)
-    
+        
     def moveEvent(self,event):
         self.tree_widget.move()
         
@@ -75,6 +82,12 @@ class WindowWidget(QWidget):
     
     def resizeEvent(self, event):
         self.tree_widget.move()
+    '''
+    def database_changed_slot(self, path):
+        print('database changed, changing_tree:{:}, path:{:}'.format(self.changing_tree, path))
+        if not self.changing_tree:
+            self.changing_tree=True
+            self.tree_widget.compute()'''
 
 class plotOptions(QComboBox):
     
@@ -82,6 +95,10 @@ class plotOptions(QComboBox):
         super().__init__()
         self.treewidget=treewidget
         self.addItems(['Real', 'Imaginary', 'dB', 'Smith'])
+        self.currentTextChanged.connect(self.update)
+    
+    def update(self, new_text):
+        self.window().plot_widget.plot()
 
 
 class DirectoryButton(QPushButton):
@@ -152,10 +169,10 @@ class QTreeContextMenu(QMenu):
         next_item=None
         self.selected_items=self.tree_widget.selectedItems()
         selection=self.selected_items
-
         for item in selection:
             curve_id=item.data(0,0)
             SQLDatabase().delete_entry(curve_id)
+        self.tree_widget.compute()
 
 class QParamsContextMenu(QMenu):
     
@@ -273,18 +290,22 @@ class TreeWidget(QTreeWidget):
         self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.currentItemChanged.connect(self.current_item_changed)
         self.compute(first_use=True)
-        self.itemActivated.connect(self.compute)
+        #self.itemActivated.connect(self.activation)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
     
+    def activation(self):
+        print('item activated !')
+        
     def move(self):
         if self.contextMenu is not None:
             self.contextMenu.move()
             
     def RightClickMenu(self, point):
         item=self.itemAt(point)
-        self.contextMenu=QTreeContextMenu(item)
+        if item is not None:
+            self.contextMenu=QTreeContextMenu(item)
         
     def current_item_changed(self, item, previous_item):
         self.active_item = item
@@ -293,56 +314,66 @@ class TreeWidget(QTreeWidget):
         else:
             self.active_ID=None
         self.window().row_changed.emit()
-
+    
     def compute(self, first_use=False):
         if first_use:
             new_size=N_ROW_DEFAULT
         else:
             new_size = self.window().spinbox_widget.current_value
-        if new_size!=self.length or first_use:
-            self.clear()
-            database=SQLDatabase()
-            keys = database.get_all_ids()
-            N=len(keys)
-            new_size=np.min([N,new_size])
-            i=0
-            #keys = list(data.keys())
-            
-            while(len(keys)>0 and self.topLevelItemCount()<new_size and i<N):
-                key = keys[-1]
-                if key in keys:
-                    curve_data = database.get_curve_metadata(key)
-                    name, date, childs, parent, params = curve_data
-                    #curve = DataBase().get_curve(key, retrieve_data=False)
-                    if parent==key:
-                        keys.remove(key)
-                        item=QTreeWidgetItem()
-                        item.setData(0,0,key)
-                        item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date)))
-                        item.setData(1,0, name) 
-                        if key==self.active_ID:
-                            self.setCurrentItem(item)
-                        self.addTopLevelItem(item)
-                        for child in childs:
-                            keys = self.add_child(item, keys, child)  
-                i=i+1
-            self.sortItems(2,QtCore.Qt.DescendingOrder)
-            
+        self.clear()
+        database=SQLDatabase()
+        keys = database.get_all_hierarchy()
+        N=len(keys)
+        new_size=np.min([N,new_size])
+        i=0
+        to_remove=[]
+        while(len(keys)>0 and self.topLevelItemCount()<new_size and i<N):
+            key, childs, parent = keys.pop()
+            '''#curve_data = database.get_curve_metadata(key)
+            if curve_data is not None:
+                name, date, childs, parent, params = curve_data
+                #curve = DataBase().get_curve(key, retrieve_data=False)
+                print('parent:{:}, id:{:}'.format(parent, key))'''
+                
+            if parent==key and key not in to_remove:
+                name, date=database.get_name_and_time(key)
+                item=QTreeWidgetItem()
+                item.setData(0,0,key)
+                item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(float(date)+7200)))
+                item.setData(1,0, name) 
+                if key==self.active_ID:
+                    self.setCurrentItem(item)
+                self.addTopLevelItem(item)
+                
+                if childs!='[]':
+                    childs=json.loads(childs)
+                    for child in childs:
+                        to_remove+= self.add_child(item, child)
+                '''for curve_id in to_remove:
+                    if curve_id in keys:
+                        if childs!='[]':
+                            keys.remove((curve_id, str(childs), parent))
+                        else:
+                            keys.remove((curve_id, '[]', parent))'''
+            i=i+1
+        self.sortItems(2,QtCore.Qt.DescendingOrder)
+        self.window().changing_tree=False
         
-    def add_child(self, item, keys, child):
-        #child = DataBase().get_curve(child)
-        keys.remove(child)
-        name, date, childs, parent, params = SQLDatabase().get_curve_metadata(child)
-        child_item=QTreeWidgetItem()
-        child_item.setData(0,0,str(child))
-        child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date)))
-        child_item.setData(1,0, name)
-        if int(str(child))==self.active_ID:
-            self.setCurrentItem(child_item)
-        item.addChild(child_item)
-        for grandchild in childs:
-            keys = self.add_child(child_item, keys, grandchild)
-        return keys
+    def add_child(self, item, child):
+        res=[child]
+        params=SQLDatabase().get_name_and_time(child)
+        if params is not None:
+            name, date=params
+            child_item=QTreeWidgetItem()
+            child_item.setData(0,0,str(child))
+            child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date+7200)))
+            child_item.setData(1,0, name)
+            if int(str(child))==self.active_ID:
+                self.setCurrentItem(child_item)
+            item.addChild(child_item)
+            for grandchild in SQLDatabase().get_childs(child):
+                res+= self.add_child(child_item, grandchild)
+        return res
         
 
 class SpinBoxWidget(QSpinBox):
@@ -352,6 +383,7 @@ class SpinBoxWidget(QSpinBox):
         self.editingFinished.connect(self.editing_finished)
         self.current_value = self.value()
         self.setMaximumWidth(100)
+        self.setMaximum(10000)
         
         
     def editing_finished(self):
@@ -366,24 +398,24 @@ class PlotWidget(pg.PlotWidget):
     def plot(self):
         item = self.window().tree_widget.active_item
         if item is not None:
+            self.getPlotItem().enableAutoRange(enable=True)
             curve_id = int(item.data(0,0))
             curve = SQLDatabase().get_curve(curve_id)
+            x, y_r, y_i, y_abs=(np.real(curve.x), np.real(curve.y),
+                                np.imag(curve.y), np.abs(curve.y))
             self.getPlotItem().clear()
             
             state=self.window().plot_options.currentText()
             if state=='dB':
-                self.getPlotItem().plot(curve.x, np.abs(curve.y))
-                self.getPlotItem().setLogMode(x=False, y=True)
+                self.getPlotItem().plot(x, 20*np.log10(y_abs))
             elif state=='Real':
-                self.getPlotItem().plot(curve.x, np.real(curve.y))
-                self.getPlotItem().setLogMode(x=False, y=False)
+                self.getPlotItem().plot(x, y_r)
             elif state=='Imaginary':
-                self.getPlotItem().plot(curve.x, np.imag(curve.y))
-                self.getPlotItem().setLogMode(x=False, y=False)
+                self.getPlotItem().plot(x, y_i)
             elif state=='Smith':
-                self.getPlotItem().plot(np.real(curve.y), np.imag(curve.y))
-                self.getPlotItem().setLogMode(x=False, y=False)
-        
+                self.getPlotItem().plot(y_r, y_i)
+            self.getPlotItem().enableAutoRange(enable=False)
+            
         
         
 #data = DataBase().get_data()
@@ -391,8 +423,8 @@ app = QtCore.QCoreApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
 window = WindowWidget()
-curve_1=Curve([0,1,2,3])
-curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
+#curve_1=Curve([0,1,2,3])
+#curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
 
 sys.exit(app.exec_())
 
