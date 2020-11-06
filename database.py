@@ -158,26 +158,28 @@ class SQLDatabase():
         return res
     
     def get_curve(self, curve_id):
-        assert self.exists(curve_id)
-        self.get_cursor()
-        self.cursor.execute('''SELECT name, date, childs, parent FROM data WHERE id=?''', (int(curve_id),))
-        res = self.cursor.fetchone()
-        name = res[0]
-        date = float(res[1])
-        childs = json.loads(res[2])
-        parent = int(res[3])
-        params = dict()
-        directory=self.get_folder_from_date(date)
-        if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
-            with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
-                data=f['data']
-                x=data[0]
-                y=data[1]
-                params=self.extract_dictionary(params, data.attrs)
-            return Curve(curve_id, x, y, database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
+        if self.exists(curve_id):
+            self.get_cursor()
+            self.cursor.execute('''SELECT name, date, childs, parent FROM data WHERE id=?''', (int(curve_id),))
+            res = self.cursor.fetchone()
+            name = res[0]
+            date = float(res[1])
+            childs = json.loads(res[2])
+            parent = int(res[3])
+            params = dict()
+            directory=self.get_folder_from_date(date)
+            if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
+                with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
+                    data=f['data']
+                    x=data[0]
+                    y=data[1]
+                    params=self.extract_dictionary(params, data.attrs)
+                return Curve(curve_id, x, y, database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
+            else:
+                return Curve(curve_id, [], [], database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
         else:
-            return Curve(curve_id, [], [], database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
-
+            return None
+        
     def get_curve_metadata(self, curve_id):
         if self.exists(curve_id):
             self.get_cursor()
@@ -239,37 +241,38 @@ class SQLDatabase():
     
     def delete_entry(self, curve_id):
         curve = self.get_curve(curve_id)
-        for child in curve.childs:
-            self.delete_entry(child)
-        if curve.has_parent():
-            parent = self.get_curve(curve.parent)
-            parent.remove_child(curve_id)
-        filename=os.path.join(curve.directory, '{:}.h5'.format(curve_id))
-        if(os.path.exists(filename)):
-            os.remove(filename)
-        if curve.exist_directory():
-            os.chdir(curve.directory)
-            shutil.rmtree(str(curve_id))
-        directory=curve.directory
-        while((len(os.listdir(directory))==0)&(directory!=SQLDatabase.DATA_LOCATION)):
-            os.rmdir(directory)
-            directory=os.path.split(directory)[0]
-        self.get_cursor()
-        self.db.isolation_level='IMMEDIATE'
-        try:
-            self.cursor.execute('''DELETE FROM data WHERE id=?''',
-                                (int(curve_id),))
-            
-            #curve.delete(delete_from_database=False)
-            self.db.commit() 
-        except sqlite3.Error as er:
-            print('SQLite error: %s' % (' '.join(er.args)))
-            print("Exception class is: ", er.__class__)
-            print('SQLite traceback: ')
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            print(traceback.format_exception(exc_type, exc_value, exc_tb))
-        finally:
-            self.db.isolation_level=None
+        if curve is not None:
+            for child in curve.childs:
+                self.delete_entry(child)
+            if curve.has_parent():
+                parent = self.get_curve(curve.parent)
+                parent.remove_child(curve_id)
+            filename=os.path.join(curve.directory, '{:}.h5'.format(curve_id))
+            if(os.path.exists(filename)):
+                os.remove(filename)
+            if curve.exist_directory():
+                os.chdir(curve.directory)
+                shutil.rmtree(str(curve_id))
+            directory=curve.directory
+            while((len(os.listdir(directory))==0)&(directory!=SQLDatabase.DATA_LOCATION)):
+                os.rmdir(directory)
+                directory=os.path.split(directory)[0]
+            self.get_cursor()
+            self.db.isolation_level='IMMEDIATE'
+            try:
+                self.cursor.execute('''DELETE FROM data WHERE id=?''',
+                                    (int(curve_id),))
+                
+                #curve.delete(delete_from_database=False)
+                self.db.commit() 
+            except sqlite3.Error as er:
+                print('SQLite error: %s' % (' '.join(er.args)))
+                print("Exception class is: ", er.__class__)
+                print('SQLite traceback: ')
+                exc_type, exc_value, exc_tb = sys.exc_info()
+                print(traceback.format_exception(exc_type, exc_value, exc_tb))
+            finally:
+                self.db.isolation_level=None
     
     def __del__(self):
         self.close()
@@ -376,10 +379,11 @@ class Curve:
                 
     
     def remove_child(self, child_id):
-        if child_id in self.childs:
-            child = self.database.get_curve(child_id)
+        if int(child_id) in self.childs:
+            child = self.database.get_curve(int(child_id))
             child.parent=child_id
-            self.childs.remove(child_id)
+            child.save()
+            self.childs.remove(int(child_id))
         self.save()
     
     def set_name(self, name):
@@ -425,22 +429,22 @@ class Curve:
 
 if __name__=='__main__':
     
-    if sys.platform!='linux':
+    '''if sys.platform!='linux':
         os.chdir(os.environ['HOMEPATH'])
     else:
         os.chdir(os.environ['HOME'])
     if not '.database' in os.listdir():
         os.mkdir('.database')
-    os.chdir('.database')
+    os.chdir('.database')'''
     database=SQLDatabase()
-    curve=Curve([0,1,2,3], [1,2,3,4])
+    '''curve=Curve([0,1,2,3], [1,2,3,4])
     curve.params['hello']='bonjour'
     curve.save()
     curve_id=curve.id
     retrieved_curve=database.get_curve(curve_id)
     retrieved_curve=database.get_curve(curve_id)
     retrieved_curve.delete()
-    database.close()
+    database.close()'''
 
 
 
