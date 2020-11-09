@@ -94,7 +94,7 @@ class plotOptions(QComboBox):
     def __init__(self, treewidget):
         super().__init__()
         self.treewidget=treewidget
-        self.addItems(['Real', 'Imaginary', 'dB', 'Smith'])
+        self.addItems(['Real', 'Imaginary', 'dB', 'Smith', 'Abs'])
         self.currentTextChanged.connect(self.update)
     
     def update(self, new_text):
@@ -323,6 +323,7 @@ class TreeWidget(QTreeWidget):
         self.clear()
         database=SQLDatabase()
         keys = database.get_all_hierarchy()
+        keys_copy=keys.copy()
         N=len(keys)
         new_size=np.min([N,new_size])
         i=0
@@ -336,7 +337,7 @@ class TreeWidget(QTreeWidget):
                 print('parent:{:}, id:{:}'.format(parent, key))'''
                 
             if parent==key and key not in to_remove:
-                name, date=database.get_name_and_time(key)
+                curve_id, name, date=database.get_name_and_time(key)
                 item=QTreeWidgetItem()
                 item.setData(0,0,key)
                 item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(float(date)+7200)))
@@ -347,8 +348,9 @@ class TreeWidget(QTreeWidget):
                 
                 if childs!='[]':
                     childs=json.loads(childs)
+                    params_childs=database.get_name_and_time(childs)
                     for child in childs:
-                        to_remove+= self.add_child(item, child)
+                        to_remove+= self.add_child(item, child, keys_copy, params_childs)
                 '''for curve_id in to_remove:
                     if curve_id in keys:
                         if childs!='[]':
@@ -359,11 +361,23 @@ class TreeWidget(QTreeWidget):
         self.sortItems(2,QtCore.Qt.DescendingOrder)
         self.window().changing_tree=False
         
-    def add_child(self, item, child):
+    def add_child(self, item, child, keys, params_childs):
+        database=SQLDatabase()
         res=[child]
-        params=SQLDatabase().get_name_and_time(child)
+        params=None
+        for val in params_childs:
+            if(int(val[0])==child):
+                params=val
+        #params=SQLDatabase().get_name_and_time(child)
         if params is not None:
-            name, date=params
+            for key in keys:
+                if key[0]==child:
+                    if key[1]!='[]':
+                        grandchilds=json.loads(key[1])
+                    else:
+                        grandchilds=[]
+                    break           
+            curve_id, name, date=params
             child_item=QTreeWidgetItem()
             child_item.setData(0,0,str(child))
             child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date+7200)))
@@ -371,8 +385,12 @@ class TreeWidget(QTreeWidget):
             if int(str(child))==self.active_ID:
                 self.setCurrentItem(child_item)
             item.addChild(child_item)
-            for grandchild in SQLDatabase().get_childs(child):
-                res+= self.add_child(child_item, grandchild)
+            #grandchilds=SQLDatabase().get_childs(child)
+            if len(grandchilds)>0:
+                params_grandchilds=database.get_name_and_time(grandchilds)
+            for grandchild in grandchilds:
+                res+= self.add_child(child_item, grandchild, keys, 
+                                     params_grandchilds)
         return res
         
 
@@ -414,6 +432,8 @@ class PlotWidget(pg.PlotWidget):
                 self.getPlotItem().plot(x, y_i)
             elif state=='Smith':
                 self.getPlotItem().plot(y_r, y_i)
+            elif state=='Abs':
+                self.getPlotItem().plot(x, y_abs)
             self.getPlotItem().enableAutoRange(enable=False)
             
         

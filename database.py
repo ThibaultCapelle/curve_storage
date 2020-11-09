@@ -70,8 +70,15 @@ class SQLDatabase():
     
     def get_name_and_time(self, curve_id):
         self.get_cursor()
-        self.cursor.execute('''SELECT name, date FROM data WHERE id=?''', (int(curve_id),))
-        return self.cursor.fetchone()
+        if not isinstance(curve_id, list) and not(isinstance(curve_id, tuple)):
+            self.cursor.execute('''SELECT id, name, date FROM data WHERE id=?''', (int(curve_id),))
+            return self.cursor.fetchone()
+        elif isinstance(curve_id, list) and len(curve_id)==1:
+            self.cursor.execute('''SELECT id, name, date FROM data WHERE id=?''', (int(curve_id[0]),))
+            return self.cursor.fetchall()
+        else:
+            self.cursor.execute('''SELECT id, name, date FROM data WHERE id IN {:}'''.format(tuple(curve_id)))
+            return self.cursor.fetchall()
     
     def get_cursor(self):
         try:
@@ -96,7 +103,7 @@ class SQLDatabase():
         try:
             self.cursor.execute('''
                            CREATE TABLE data(id INTEGER PRIMARY KEY, name TEXT,
-                           date FLOAT, childs TEXT, parent INTEGER)
+                           date FLOAT, childs TEXT, parent INTEGER, project text)
                            ''')
             self.db.commit()
         except sqlite3.Error as er:
@@ -129,13 +136,14 @@ class SQLDatabase():
             curve.parent=curve.id
         self.db.isolation_level='IMMEDIATE'
         try:
-            self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent)
-                      VALUES(?,?,?,?,?)''',
+            self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project)
+                      VALUES(?,?,?,?,?,?)''',
                       (int(curve_id),
                       curve.name,
                       float(curve.date),
                       json.dumps(curve.childs),
-                      int(curve.parent)))
+                      int(curve.parent),
+                      curve.project))
             self.db.commit()
         except sqlite3.Error as er:
             print('SQLite error: %s' % (' '.join(er.args)))
@@ -160,13 +168,14 @@ class SQLDatabase():
     def get_curve(self, curve_id):
         if self.exists(curve_id):
             self.get_cursor()
-            self.cursor.execute('''SELECT name, date, childs, parent FROM data WHERE id=?''', (int(curve_id),))
+            self.cursor.execute('''SELECT name, date, childs, parent, project FROM data WHERE id=?''', (int(curve_id),))
             res = self.cursor.fetchone()
             name = res[0]
             date = float(res[1])
             childs = json.loads(res[2])
             parent = int(res[3])
             params = dict()
+            project = res[4]
             directory=self.get_folder_from_date(date)
             if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
                 with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
@@ -174,9 +183,14 @@ class SQLDatabase():
                     x=data[0]
                     y=data[1]
                     params=self.extract_dictionary(params, data.attrs)
-                return Curve(curve_id, x, y, database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
+                return Curve(curve_id, x, y, database=self, name=name,
+                             date=date, childs=childs, parent=parent,
+                             params=params, directory=directory,
+                             project=project)
             else:
-                return Curve(curve_id, [], [], database=self, name=name, date=date, childs=childs, parent=parent, params=params, directory=directory)
+                return Curve(curve_id, [], [], database=self, name=name, 
+                             date=date, childs=childs, parent=parent, 
+                             params=params, directory=directory, project=project)
         else:
             return None
         
@@ -219,16 +233,18 @@ class SQLDatabase():
     
     
     def update_entry(self, curve):
+        print('I will update')
         assert self.exists(curve.id)
         self.get_cursor()
         if len(curve.childs)>0:
             curve.childs=[int(i) for i in curve.childs]
         self.db.isolation_level='IMMEDIATE'
         try:
-            self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=? WHERE id=?''',
+            self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=?, project=? WHERE id=?''',
                                 (curve.name, json.dumps(curve.childs),
                                  int(curve.parent), 
-                                 int(curve.id)))
+                                 int(curve.id),
+                                 curve.project))
             self.db.commit()
         except sqlite3.Error as er:
             print('SQLite error: %s' % (' '.join(er.args)))
@@ -323,6 +339,10 @@ class Curve:
                 self.name=kwargs.pop('name')
             else:
                 self.name=""
+            if 'project' in kwargs:
+                self.project=kwargs.pop('project')
+            else:
+                self.project=""
             self.params = kwargs
             self.childs = list([])
             self.id=None
@@ -333,7 +353,8 @@ class Curve:
             self.copy(self.database.get_curve(args[0]))
         elif len(args)==3:
             self.id=args[0]
-            for key in ['name', 'date', 'childs', 'parent', 'params', 'directory']:
+            for key in ['name', 'date', 'childs', 'parent', 'params', 'directory',
+                        'project']:
                 assert key in kwargs.keys()
             self.name=kwargs.pop('name')
             self.date=kwargs.pop('date')
@@ -341,6 +362,7 @@ class Curve:
             self.parent=kwargs.pop('parent')
             self.params=kwargs.pop('params')
             self.directory=kwargs.pop('directory')
+            self.project=kwargs.pop('project')
             self.x=args[1]
             self.y=args[2]
         elif  len(args)==2 or len(args)==1 and not np.isscalar(args[0]):
@@ -356,6 +378,10 @@ class Curve:
                 self.name=kwargs.pop('name')
             else:
                 self.name=""
+            if 'project' in kwargs:
+                self.project=kwargs.pop('project')
+            else:
+                self.project=""
             self.params = kwargs
             self.childs = list([])
             self.id=None
@@ -408,6 +434,7 @@ class Curve:
         self.x=curve.x
         self.y=curve.y
         self.name=curve.name
+        self.project=curve.project
         self.params=curve.params
         self.date=curve.date
         self.childs=curve.childs
