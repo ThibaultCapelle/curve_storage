@@ -243,8 +243,8 @@ class SQLDatabase():
             self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=?, project=? WHERE id=?''',
                                 (curve.name, json.dumps(curve.childs),
                                  int(curve.parent), 
-                                 int(curve.id),
-                                 curve.project))
+                                 curve.project,
+                                 int(curve.id) ))
             self.db.commit()
         except sqlite3.Error as er:
             print('SQLite error: %s' % (' '.join(er.args)))
