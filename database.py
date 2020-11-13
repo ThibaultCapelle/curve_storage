@@ -63,9 +63,12 @@ class SQLDatabase():
         except ValueError:
             return 0
     
-    def get_all_hierarchy(self):
+    def get_all_hierarchy(self, project=None):
         self.get_cursor()
-        self.cursor.execute('''SELECT id, childs, parent FROM data''')
+        if project is None:
+            self.cursor.execute('''SELECT id, childs, parent FROM data''')
+        else:
+            self.cursor.execute('''SELECT id, childs, parent FROM data WHERE project=?''', (project,))
         return self.cursor.fetchall()
     
     def get_name_and_time(self, curve_id):
@@ -233,7 +236,6 @@ class SQLDatabase():
     
     
     def update_entry(self, curve):
-        print('I will update')
         assert self.exists(curve.id)
         self.get_cursor()
         if len(curve.childs)>0:

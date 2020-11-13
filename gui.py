@@ -43,15 +43,21 @@ class WindowWidget(QWidget):
         self.layout_global.addLayout(self.layout_right)
         self.layout_left.addLayout(self.layout_show_first)
         self.spinbox_widget = SpinBoxWidget()
-        self.tree_widget = TreeWidget()
+        self.show_specific_project = QCheckBox('Show specific project')
+        self.project = Project('', self)
+        self.tree_widget = TreeWidget(self.show_specific_project, self.project)
         self.plot_options = plotOptions(self.tree_widget)
         self.param_widget = ParamWidget(self.layout)
         self.layout_right.addWidget(self.param_widget)
         self.show_first_label = QLabel('show first')
+        
+        
         self.compute_button = QPushButton('update')
         self.layout_show_first.addWidget(self.show_first_label)
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
+        self.layout_show_first.addWidget(self.show_specific_project)
+        self.layout_show_first.addWidget(self.project)
         self.layout_show_first.addWidget(self.compute_button)
         self.layout_center.addLayout(self.layout_top)
         self.layout_top.addWidget(self.plot_options)
@@ -89,6 +95,30 @@ class WindowWidget(QWidget):
             self.changing_tree=True
             self.tree_widget.compute()'''
 
+class Project(QLineEdit):
+    
+    def __init__(self, text, window):
+        super().__init__(text, parent=window)
+        self.parent=window
+        self.hide()
+        self.parent.show_specific_project.stateChanged.connect(self.set_visible)
+        
+    
+    def set_visible(self, state):
+        if isinstance(state, bool):
+            pass
+        elif state==QtCore.Qt.Checked:
+            self.show()
+        elif state==QtCore.Qt.Unchecked:
+            self.hide()
+            self.parent.tree_widget.compute()
+        else:
+            pass
+        
+    def text_changed_slot(self, text):
+        if not self.isHidden():
+            self.parent.tree_widget.compute()
+        
 class plotOptions(QComboBox):
     
     def __init__(self, treewidget):
@@ -279,8 +309,10 @@ class ParamWidget(QTableWidget):
 
 class TreeWidget(QTreeWidget):
     
-    def __init__(self):
+    def __init__(self, show_specific_project, project):
         super().__init__()
+        self.show_specific_project=show_specific_project
+        self.project=project
         self.active_ID=None
         self.setColumnCount(3)
         self.length = np.min([SQLDatabase().get_n_keys(), N_ROW_DEFAULT])
@@ -320,10 +352,17 @@ class TreeWidget(QTreeWidget):
             new_size=N_ROW_DEFAULT
         else:
             new_size = self.window().spinbox_widget.current_value
+        if self.show_specific_project.isChecked():
+            project=self.project.text()
+        else:
+            project=None
         self.clear()
         database=SQLDatabase()
-        keys = database.get_all_hierarchy()
-        keys_copy=keys.copy()
+        keys = database.get_all_hierarchy(project=project)
+        if project is not None:
+            keys_copy=database.get_all_hierarchy(project=None)
+        else:
+            keys_copy=keys.copy()    
         N=len(keys)
         new_size=np.min([N,new_size])
         i=0
