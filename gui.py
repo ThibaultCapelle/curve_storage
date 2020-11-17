@@ -348,6 +348,7 @@ class TreeWidget(QTreeWidget):
         self.window().row_changed.emit()
     
     def compute(self, first_use=False):
+        t_ini=time.time()
         if first_use:
             new_size=N_ROW_DEFAULT
         else:
@@ -367,6 +368,7 @@ class TreeWidget(QTreeWidget):
         new_size=np.min([N,new_size])
         i=0
         to_remove=[]
+        print('initial time is {:}'.format(time.time()-t_ini))
         while(len(keys)>0 and self.topLevelItemCount()<new_size and i<N):
             key, childs, parent = keys.pop()
             '''#curve_data = database.get_curve_metadata(key)
@@ -401,12 +403,15 @@ class TreeWidget(QTreeWidget):
         self.window().changing_tree=False
         
     def add_child(self, item, child, keys, params_childs):
+        t_ini=time.time()
         database=SQLDatabase()
         res=[child]
         params=None
+        t_ini_bis=time.time()
         for val in params_childs:
             if(int(val[0])==child):
                 params=val
+        print('finding the child time is {:}'.format(time.time()-t_ini_bis))
         #params=SQLDatabase().get_name_and_time(child)
         if params is not None:
             for key in keys:
@@ -430,6 +435,7 @@ class TreeWidget(QTreeWidget):
             for grandchild in grandchilds:
                 res+= self.add_child(child_item, grandchild, keys, 
                                      params_grandchilds)
+        print('add_child time is {:}'.format(time.time()-t_ini))
         return res
         
 
