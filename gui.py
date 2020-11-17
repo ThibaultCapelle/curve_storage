@@ -379,6 +379,7 @@ class TreeWidget(QTreeWidget):
                 
             if parent==key and key not in to_remove:
                 curve_id, name, date=database.get_name_and_time(key)
+                print('curve_id of parent : {:}'.format(curve_id))
                 item=QTreeWidgetItem()
                 item.setData(0,0,key)
                 item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(float(date)+7200)))
@@ -391,7 +392,7 @@ class TreeWidget(QTreeWidget):
                     childs=json.loads(childs)
                     params_childs=database.get_name_and_time(childs)
                     for child in childs:
-                        to_remove+= self.add_child(item, child, keys_copy, params_childs)
+                        to_remove+= self.add_child(item, child, keys_copy, params_childs, database)
                 '''for curve_id in to_remove:
                     if curve_id in keys:
                         if childs!='[]':
@@ -402,12 +403,13 @@ class TreeWidget(QTreeWidget):
         self.sortItems(2,QtCore.Qt.DescendingOrder)
         self.window().changing_tree=False
         
-    def add_child(self, item, child, keys, params_childs):
+    def add_child(self, item, child, keys, params_childs, database):
+        print('child id is {:}'.format(child))
         t_ini=time.time()
-        database=SQLDatabase()
         res=[child]
         params=None
         t_ini_bis=time.time()
+        print('this far it took {:}'.format(time.time()-t_ini))
         for val in params_childs:
             if(int(val[0])==child):
                 params=val
@@ -438,7 +440,7 @@ class TreeWidget(QTreeWidget):
             print('setting the child time is {:}'.format(time.time()-t_ini_bis))
             for grandchild in grandchilds:
                 res+= self.add_child(child_item, grandchild, keys, 
-                                     params_grandchilds)
+                                     params_grandchilds, database)
         print('add_child time is {:}'.format(time.time()-t_ini))
         return res
         
