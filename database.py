@@ -3,6 +3,7 @@ import numpy as np
 import h5py, sys
 import sqlite3
 import traceback
+from contextlib import contextmanager
 
 if not sys.platform=='linux':
     ROOT=os.environ['USERPROFILE']
@@ -10,6 +11,19 @@ else:
     ROOT=os.environ['HOME']
 
 
+@contextmanager
+def transaction(conn):
+    # We must issue a "BEGIN" explicitly when running in auto-commit mode.
+    conn.execute('BEGIN')
+    try:
+        # Yield control back to the caller.
+        yield
+    except:
+        conn.rollback()  # Roll back all changes if an exception occurs.
+        raise
+    else:
+        conn.commit()
+        
 class SQLDatabase():
     
     first_instance = True
@@ -32,7 +46,9 @@ class SQLDatabase():
             if not '.database' in os.listdir(ROOT):
                 os.mkdir(os.path.join(ROOT,'.database'))
             self.db=sqlite3.connect(os.path.join(SQLDatabase.DATABASE_LOCATION,
-                                                 SQLDatabase.DATABASE_NAME))
+                                                 SQLDatabase.DATABASE_NAME),
+                                    isolation_level=None)
+            self.db.execute('''pragma journal_mode=wal;''')
             if not self.is_table_created():
                 self.create_table()
             self.__class__.instances.append(self.db)
@@ -101,22 +117,12 @@ class SQLDatabase():
         return ('data',) in self.cursor.fetchall()
     
     def create_table(self):
-        self.get_cursor()
-        self.db.isolation_level='IMMEDIATE'
-        try:
+        with transaction(self.db):
+            self.get_cursor()
             self.cursor.execute('''
                            CREATE TABLE data(id INTEGER PRIMARY KEY, name TEXT,
                            date FLOAT, childs TEXT, parent INTEGER, project text)
                            ''')
-            self.db.commit()
-        except sqlite3.Error as er:
-            print('SQLite error: %s' % (' '.join(er.args)))
-            print("Exception class is: ", er.__class__)
-            print('SQLite traceback: ')
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            print(traceback.format_exception(exc_type, exc_value, exc_tb))
-        finally:
-            self.db.isolation_level=None
         
     
     def save(self, curve):
@@ -130,16 +136,15 @@ class SQLDatabase():
         curve_id = self.__class__.highest_key+1
         self.__class__.highest_key = curve_id
         curve.id=curve_id
-        self.get_cursor()
         try:
             curve.date
         except AttributeError:
             curve.date=time.time()
         if curve.parent is None:
             curve.parent=curve.id
-        self.db.isolation_level='IMMEDIATE'
-        try:
-            self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project)
+            with transaction(self.db):
+                self.get_cursor()
+                self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project)
                       VALUES(?,?,?,?,?,?)''',
                       (int(curve_id),
                       curve.name,
@@ -147,14 +152,6 @@ class SQLDatabase():
                       json.dumps(curve.childs),
                       int(curve.parent),
                       curve.project))
-            self.db.commit()
-        except sqlite3.Error as er:
-            print('SQLite error: %s' % (' '.join(er.args)))
-            print("Exception class is: ", er.__class__)
-            print('SQLite traceback: ')
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            print(traceback.format_exception(exc_type, exc_value, exc_tb))
-            self.db.isolation_level=None
         curve.directory = self.get_folder_from_date(curve.date)
         curve.parent = curve_id
     
@@ -237,25 +234,15 @@ class SQLDatabase():
     
     def update_entry(self, curve):
         assert self.exists(curve.id)
-        self.get_cursor()
         if len(curve.childs)>0:
             curve.childs=[int(i) for i in curve.childs]
-        self.db.isolation_level='IMMEDIATE'
-        try:
+        with transaction(self.db):
+            self.get_cursor()
             self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=?, project=? WHERE id=?''',
                                 (curve.name, json.dumps(curve.childs),
                                  int(curve.parent), 
                                  curve.project,
                                  int(curve.id) ))
-            self.db.commit()
-        except sqlite3.Error as er:
-            print('SQLite error: %s' % (' '.join(er.args)))
-            print("Exception class is: ", er.__class__)
-            print('SQLite traceback: ')
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            print(traceback.format_exception(exc_type, exc_value, exc_tb))
-        finally:
-            self.db.isolation_level=None
     
     def delete_entry(self, curve_id):
         curve = self.get_curve(curve_id)
@@ -275,22 +262,10 @@ class SQLDatabase():
             while((len(os.listdir(directory))==0)&(directory!=SQLDatabase.DATA_LOCATION)):
                 os.rmdir(directory)
                 directory=os.path.split(directory)[0]
-            self.get_cursor()
-            self.db.isolation_level='IMMEDIATE'
-            try:
+            with transaction(self.db):
+                self.get_cursor()
                 self.cursor.execute('''DELETE FROM data WHERE id=?''',
                                     (int(curve_id),))
-                
-                #curve.delete(delete_from_database=False)
-                self.db.commit() 
-            except sqlite3.Error as er:
-                print('SQLite error: %s' % (' '.join(er.args)))
-                print("Exception class is: ", er.__class__)
-                print('SQLite traceback: ')
-                exc_type, exc_value, exc_tb = sys.exc_info()
-                print(traceback.format_exception(exc_type, exc_value, exc_tb))
-            finally:
-                self.db.isolation_level=None
     
     def __del__(self):
         self.close()

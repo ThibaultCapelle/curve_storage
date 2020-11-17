@@ -23,3 +23,4 @@ $RECYCLE.BIN/
 # =========================
 *.pyc
 *.db
+move_params.py

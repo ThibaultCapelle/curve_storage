@@ -411,7 +411,7 @@ class TreeWidget(QTreeWidget):
         for val in params_childs:
             if(int(val[0])==child):
                 params=val
-        print('finding the child time is {:}'.format(time.time()-t_ini_bis))
+        
         #params=SQLDatabase().get_name_and_time(child)
         if params is not None:
             for key in keys:
@@ -420,18 +420,22 @@ class TreeWidget(QTreeWidget):
                         grandchilds=json.loads(key[1])
                     else:
                         grandchilds=[]
-                    break           
+                    break      
+            
             curve_id, name, date=params
             child_item=QTreeWidgetItem()
             child_item.setData(0,0,str(child))
             child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date+7200)))
             child_item.setData(1,0, name)
+            
             if int(str(child))==self.active_ID:
                 self.setCurrentItem(child_item)
             item.addChild(child_item)
+            
             #grandchilds=SQLDatabase().get_childs(child)
             if len(grandchilds)>0:
                 params_grandchilds=database.get_name_and_time(grandchilds)
+            print('setting the child time is {:}'.format(time.time()-t_ini_bis))
             for grandchild in grandchilds:
                 res+= self.add_child(child_item, grandchild, keys, 
                                      params_grandchilds)
