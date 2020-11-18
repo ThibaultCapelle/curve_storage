@@ -3,6 +3,7 @@ import numpy as np
 import h5py, sys
 import sqlite3
 import traceback
+import shutil
 from contextlib import contextmanager
 
 if not sys.platform=='linux':
@@ -498,7 +499,23 @@ class Curve:
         self.parent=curve.parent
         self.database=curve.database
         self.directory=curve.directory
-        self.directory=self.directory
+        
+    def duplicate(self):
+        curve=Curve(self.x, self.y, name=self.name, project=self.project, **self.params)
+        print('id is {:}, name is {:}, project is {:}'.format(curve.id, curve.name, curve.project))
+        childs=[]
+        for child in self.childs:
+            curve_child = Curve(child).duplicate()
+            curve_child.parent=curve.id
+            curve_child.save()
+            childs.append(curve_child.id)
+        curve.childs=childs
+        curve.save()
+        if str(self.id) in os.listdir(self.directory):
+            shutil.copytree(os.path.join(self.directory, str(self.id)),
+                            os.path.join(curve.directory, str(curve.id)))
+        return curve
+        
         
     def get_or_create_dir(self):
 
