@@ -390,6 +390,7 @@ class TreeWidget(QTreeWidget):
         self.sortItems(2,QtCore.Qt.DescendingOrder)
         self.window().changing_tree=False
         
+        
     def add_child(self, item, child, keys, params_childs, database):
         res=[child]
         params=None

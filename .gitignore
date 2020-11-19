@@ -24,3 +24,4 @@ $RECYCLE.BIN/
 *.pyc
 *.db
 ./move_params.py
+./debug_database.py

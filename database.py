@@ -2,8 +2,6 @@ import os, json, time, shutil
 import numpy as np
 import h5py, sys
 import sqlite3
-import traceback
-import shutil
 from contextlib import contextmanager
 
 if not sys.platform=='linux':
@@ -479,6 +477,10 @@ class Curve:
     
     def move(self, curve_parent):
         assert curve_parent.id not in self.childs
+        if self.parent!=self.id:
+            parent=Curve(self.parent)
+            parent.childs.remove(self.id)
+            parent.save()
         self.parent = curve_parent.id
         curve_parent.childs.append(self.id)
         self.save()
