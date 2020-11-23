@@ -48,9 +48,9 @@ from curve_storage.database import SQLDatabase, Curve
 db=SQLDatabase()
 curve=Curve([], [], name="test")
 curve2=Curve([], [], name='test_child')
-curve2.move(curve)
+#curve2.move(curve)
 curve3=Curve([], [], name='test_grandchild')
-curve3.move(curve2)
+#curve3.move(curve2)
 #%%
 import psycopg2
 conn = psycopg2.connect(

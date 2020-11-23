@@ -85,7 +85,7 @@ class SQLDatabase():
             self.cursor.execute('''SELECT id, name, date FROM data WHERE id=%s''', (int(curve_id[0]),))
             return self.cursor.fetchall()
         else:
-            self.cursor.execute('''SELECT id, name, date FROM data WHERE id IN %s;''',(curve_id,))
+            self.cursor.execute('''SELECT id, name, date FROM data WHERE id = ANY (%s);''',(curve_id,))
             return self.cursor.fetchall()
     
     def get_cursor(self):
@@ -210,7 +210,7 @@ class SQLDatabase():
                 return [self.get_curve(curve_ids[0])]
             else:
                 self.get_cursor()
-                self.cursor.execute('''SELECT id, name, date, childs, parent, project FROM data WHERE id IN %s;''',tuple(curve_ids))
+                self.cursor.execute('''SELECT id, name, date, childs, parent, project FROM data WHERE id=ANY(%s);''',(curve_ids,))
                 res=[]
                 for data in self.cursor.fetchall():
                     curve_id = int(data[0])
@@ -244,8 +244,8 @@ class SQLDatabase():
                 assert isinstance(curve_ids, list)
                 assert isinstance(name, str)
                 self.get_cursor()
-                self.cursor.execute('''SELECT id, date, childs, parent, project FROM data WHERE id IN {:} AND name=%s;'''.format(tuple(args[0])),
-                                    (name,))
+                self.cursor.execute('''SELECT id, date, childs, parent, project FROM data WHERE id=ANY(%s) AND name=%s;''',
+                                    (args[0], name))
                 res=self.cursor.fetchone()
                 if res is not None:
                     curve_id = int(res[0])

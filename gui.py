@@ -8,7 +8,8 @@ Created on Thu Dec  6 15:11:28 2018
 from PyQt5.QtWidgets import (QApplication,
 QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTableWidget, QSpinBox, QTableWidgetItem, QAbstractItemView,
-QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu, QPushButton, QComboBox)
+QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu, QPushButton, QComboBox,
+QInputDialog)
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -179,21 +180,24 @@ class QTreeContextMenu(QMenu):
         #self.setGeometry(self.geometry().translated(self.layout_left_position.topLeft()))
         self.delete_action=self.addAction("delete")
         self.delete_action.triggered.connect(self.delete)
+        self.move_action=self.addAction("move")
+        self.move_action.triggered.connect(self.move)
         self.height=self.geometry().height()
         self.setVisible(True)
         self.show()
     
     def move(self):
-        self.item_position=self.tree_widget.visualItemRect(self.item).setHeight(self.height)
-        self.tree_position=self.tree_widget.geometry()
-        self.window_position=self.tree_widget.window().geometry()
-        self.layout_left_position=self.tree_widget.window().layout_left.geometry()
-        #self.header_position=self.item.treeWidget().header().geometry()
-        #self.setGeometry(self.item_position.translated(self.window_position.topLeft()).translated(self.tree_position.topLeft()))
-        #self.setGeometry(self.geometry().translated(self.layout_left_geometry().topLeft()))
-        self.setGeometry(self.item_position.translated(self.window_position.topLeft()).translated(self.tree_position.topLeft()))
-        #self.setGeometry(self.geometry().translated(self.layout_left_position.topLeft()))
-        self.show()
+        self.selected_items=self.tree_widget.selectedItems()
+        dialog = QInputDialog(self)
+        parent_id, ok=dialog.getInt(self, 'move',
+                                     'what is the desired parent ?')
+        if ok:
+            parent=Curve(parent_id)
+            for item in self.selected_items:
+                curve_id=item.data(0,0)
+                curve = Curve(curve_id)
+                curve.move(parent)
+            self.tree_widget.compute()
         
     def delete(self):
         self.selected_items=self.tree_widget.selectedItems()
@@ -368,7 +372,6 @@ class TreeWidget(QTreeWidget):
         to_remove=[]
         while(len(keys)>0 and self.topLevelItemCount()<new_size and i<N):
             key, childs, parent = keys.pop()
-                
             if parent==key and key not in to_remove:
                 curve_id, name, date=database.get_name_and_time(key)
                 item=QTreeWidgetItem()
