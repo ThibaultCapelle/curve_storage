@@ -196,7 +196,6 @@ class QTreeContextMenu(QMenu):
         self.show()
         
     def delete(self):
-        next_item=None
         self.selected_items=self.tree_widget.selectedItems()
         selection=self.selected_items
         for item in selection:
@@ -380,7 +379,7 @@ class TreeWidget(QTreeWidget):
                     self.setCurrentItem(item)
                 self.addTopLevelItem(item)
                 
-                if childs!='[]':
+                if childs not in ['[]', '{}']:
                     childs=json.loads(childs)
                     params_childs=database.get_name_and_time(childs)
                     for child in childs:
@@ -402,7 +401,7 @@ class TreeWidget(QTreeWidget):
         if params is not None:
             for key in keys:
                 if key[0]==child:
-                    if key[1]!='[]':
+                    if key[1] not in ['[]', '{}']:
                         grandchilds=json.loads(key[1])
                     else:
                         grandchilds=[]

@@ -1,7 +1,7 @@
 import os, json, time, shutil
 import numpy as np
 import h5py, sys
-import sqlite3
+import psycopg2
 from contextlib import contextmanager
 
 if not sys.platform=='linux':
@@ -13,7 +13,7 @@ else:
 @contextmanager
 def transaction(conn):
     # We must issue a "BEGIN" explicitly when running in auto-commit mode.
-    conn.execute('BEGIN')
+    #conn.execute('BEGIN')
     try:
         # Yield control back to the caller.
         yield
@@ -27,56 +27,46 @@ class SQLDatabase():
     
     first_instance = True
     instances = []
-    highest_key = None
     CONFIG_LOCATION = ROOT
     assert 'database_config.json' in os.listdir(CONFIG_LOCATION)
     with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'r') as f:
         res=json.load(f)
         DATA_LOCATION=res['DATA_LOCATION']
-        DATABASE_LOCATION=res['DATABASE_LOCATION']
+        DATABASE_HOST=res['DATABASE_HOST']
         DATABASE_NAME = res['DATABASE_NAME']
+        USER = res['USER']
     
     def __init__(self, data_location=DATA_LOCATION):
         if not self.__class__.first_instance:
             self.db=self.__class__.instances[0]
-            assert self.__class__.highest_key is not None
         else:
             self.__class__.first_instance=False
-            if not '.database' in os.listdir(ROOT):
-                os.mkdir(os.path.join(ROOT,'.database'))
-            self.db=sqlite3.connect(os.path.join(SQLDatabase.DATABASE_LOCATION,
-                                                 SQLDatabase.DATABASE_NAME),
-                                    isolation_level=None)
-            self.db.execute('''pragma journal_mode=wal;''')
+            self.db=psycopg2.connect(host=SQLDatabase.DATABASE_HOST,
+                                     database=SQLDatabase.DATABASE_NAME,
+                                     user=SQLDatabase.USER)
             if not self.is_table_created():
                 self.create_table()
             self.__class__.instances.append(self.db)
-            self.__class__.highest_key=self.get_highest_key()
         self.data_location=data_location
-        self.db=sqlite3.connect(os.path.join(SQLDatabase.DATABASE_LOCATION,
-                                                 SQLDatabase.DATABASE_NAME))
 
     
     def get_all_ids(self):
         if self.is_table_created():
             self.get_cursor()
-            self.cursor.execute('''SELECT id FROM data''')
+            self.cursor.execute('''SELECT id FROM data;''')
             return np.array(self.cursor.fetchall()).flatten().tolist()
         else:
             return []
     
     def get_one_id(self):
         self.get_cursor()
-        self.cursor.execute('''SELECT id FROM data''')
+        self.cursor.execute('''SELECT id FROM data;''')
         return np.array(self.cursor.fetchone()).flatten()[0]
     
     def get_highest_key(self):
         self.get_cursor()
-        self.cursor.execute('''SELECT id FROM data''')
-        try:
-            return np.array(self.cursor.fetchall()).max()
-        except ValueError:
-            return 0
+        self.cursor.execute('''SELECT max(id) FROM data;''')
+        return int(self.cursor.fetchone()[0])
     
     def get_all_hierarchy(self, project=None):
         self.get_cursor()
@@ -89,20 +79,22 @@ class SQLDatabase():
     def get_name_and_time(self, curve_id):
         self.get_cursor()
         if not isinstance(curve_id, list) and not(isinstance(curve_id, tuple)):
-            self.cursor.execute('''SELECT id, name, date FROM data WHERE id=?''', (int(curve_id),))
+            self.cursor.execute('''SELECT id, name, date FROM data WHERE id=%s''', (int(curve_id),))
             return self.cursor.fetchone()
         elif isinstance(curve_id, list) and len(curve_id)==1:
-            self.cursor.execute('''SELECT id, name, date FROM data WHERE id=?''', (int(curve_id[0]),))
+            self.cursor.execute('''SELECT id, name, date FROM data WHERE id=%s''', (int(curve_id[0]),))
             return self.cursor.fetchall()
         else:
-            self.cursor.execute('''SELECT id, name, date FROM data WHERE id IN {:}'''.format(tuple(curve_id)))
+            self.cursor.execute('''SELECT id, name, date FROM data WHERE id IN %s;''',(curve_id,))
             return self.cursor.fetchall()
     
     def get_cursor(self):
         try:
             self.cursor=self.db.cursor()
-        except sqlite3.ProgrammingError:
-            self.db=sqlite3.connect(SQLDatabase.DATABASE_NAME)
+        except psycopg2.InterfaceError:
+            self.db=psycopg2.connect(host=SQLDatabase.DATABASE_HOST,
+                                     database=SQLDatabase.DATABASE_NAME,
+                                     user=SQLDatabase.USER)
             self.__class__.instances=[self.db]
             self.cursor=self.db.cursor()
     
@@ -111,16 +103,25 @@ class SQLDatabase():
         return len(keys)
         
     def is_table_created(self):
-        self.get_cursor()
-        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        return ('data',) in self.cursor.fetchall()
+        with transaction(self.db):
+            self.get_cursor()
+            self.cursor.execute('''SELECT
+                    table_schema || '.' || table_name
+                    FROM
+                    information_schema.tables
+                    WHERE
+                    table_type = 'BASE TABLE'
+                    AND
+                    table_schema NOT IN ('pg_catalog', 'information_schema');
+                    ''')
+            return ('public.data',) in self.cursor.fetchall()
     
     def create_table(self):
         with transaction(self.db):
             self.get_cursor()
             self.cursor.execute('''
                            CREATE TABLE data(id INTEGER PRIMARY KEY, name TEXT,
-                           date FLOAT, childs TEXT, parent INTEGER, project text)
+                           date FLOAT, childs TEXT, parent INTEGER, project text);
                            ''')
         
     
@@ -132,8 +133,7 @@ class SQLDatabase():
         
     def add_entry(self, curve):
         assert curve.id is None
-        curve_id = self.__class__.highest_key+1
-        self.__class__.highest_key = curve_id
+        curve_id = self.get_highest_key()+1
         curve.id=curve_id
         try:
             curve.date
@@ -144,7 +144,7 @@ class SQLDatabase():
             with transaction(self.db):
                 self.get_cursor()
                 self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project)
-                      VALUES(?,?,?,?,?,?)''',
+                      VALUES(%s,%s,%s,%s,%s,%s);''',
                       (int(curve_id),
                       curve.name,
                       float(curve.date),
@@ -177,7 +177,7 @@ class SQLDatabase():
             curve_id=args[0]
             if self.exists(curve_id):
                 self.get_cursor()
-                self.cursor.execute('''SELECT name, date, childs, parent, project FROM data WHERE id=?''', (int(curve_id),))
+                self.cursor.execute('''SELECT name, date, childs, parent, project FROM data WHERE id=%s;''', (int(curve_id),))
                 res = self.cursor.fetchone()
                 name = res[0]
                 date = float(res[1])
@@ -210,7 +210,7 @@ class SQLDatabase():
                 return [self.get_curve(curve_ids[0])]
             else:
                 self.get_cursor()
-                self.cursor.execute('''SELECT id, name, date, childs, parent, project FROM data WHERE id IN {:}'''.format(tuple(curve_ids)))
+                self.cursor.execute('''SELECT id, name, date, childs, parent, project FROM data WHERE id IN %s;''',tuple(curve_ids))
                 res=[]
                 for data in self.cursor.fetchall():
                     curve_id = int(data[0])
@@ -244,7 +244,7 @@ class SQLDatabase():
                 assert isinstance(curve_ids, list)
                 assert isinstance(name, str)
                 self.get_cursor()
-                self.cursor.execute('''SELECT id, date, childs, parent, project FROM data WHERE id IN {:} AND name=?'''.format(tuple(args[0])),
+                self.cursor.execute('''SELECT id, date, childs, parent, project FROM data WHERE id IN {:} AND name=%s;'''.format(tuple(args[0])),
                                     (name,))
                 res=self.cursor.fetchone()
                 if res is not None:
@@ -276,7 +276,7 @@ class SQLDatabase():
     def get_curve_metadata(self, curve_id):
         if self.exists(curve_id):
             self.get_cursor()
-            self.cursor.execute('''SELECT name, date, childs, parent FROM data WHERE id=?''', (int(curve_id),))
+            self.cursor.execute('''SELECT name, date, childs, parent FROM data WHERE id=%s;''', (int(curve_id),))
             res = self.cursor.fetchone()
             name = res[0]
             date = float(res[1])
@@ -303,7 +303,7 @@ class SQLDatabase():
     def get_childs(self, curve_id):
         if self.exists(curve_id):
             self.get_cursor()
-            self.cursor.execute('''SELECT childs FROM data WHERE id=?''', (int(curve_id),))
+            self.cursor.execute('''SELECT childs FROM data WHERE id=%s;''', (int(curve_id),))
             res = self.cursor.fetchone()
             childs = json.loads(res[0])
             return childs
@@ -317,7 +317,7 @@ class SQLDatabase():
             curve.childs=[int(i) for i in curve.childs]
         with transaction(self.db):
             self.get_cursor()
-            self.cursor.execute('''UPDATE data SET name=?, childs=?, parent=?, project=? WHERE id=?''',
+            self.cursor.execute('''UPDATE data SET name=%s, childs=%s, parent=%s, project=%s WHERE id=%s;''',
                                 (curve.name, json.dumps(curve.childs),
                                  int(curve.parent), 
                                  curve.project,
@@ -343,7 +343,7 @@ class SQLDatabase():
                 directory=os.path.split(directory)[0]
             with transaction(self.db):
                 self.get_cursor()
-                self.cursor.execute('''DELETE FROM data WHERE id=?''',
+                self.cursor.execute('''DELETE FROM data WHERE id=%s;''',
                                     (int(curve_id),))
     
     def __del__(self):
@@ -351,12 +351,12 @@ class SQLDatabase():
     
     def exists(self, curve_id):
         self.get_cursor()
-        self.cursor.execute('''SELECT id FROM data WHERE id=?''', (int(curve_id),))
+        self.cursor.execute('''SELECT id FROM data WHERE id=%s;''', (int(curve_id),))
         return self.cursor.fetchone() is not None
     
     def get_time_from_id(self, curve_id):
         self.get_cursor()
-        self.cursor.execute('''SELECT date FROM data WHERE id=?''', (int(curve_id),))
+        self.cursor.execute('''SELECT date FROM data WHERE id=%s;''', (int(curve_id),))
         return float(self.cursor.fetchone()[0])
 
     def get_folder_from_date(self, date):
