@@ -365,7 +365,9 @@ class TreeWidget(QTreeWidget):
         if project is not None:
             keys_copy=database.get_all_hierarchy(project=None)
         else:
-            keys_copy=keys.copy()    
+            keys_copy=keys.copy()  
+        keys.sort()
+        keys_copy.sort()
         N=len(keys)
         new_size=np.min([N,new_size])
         i=0

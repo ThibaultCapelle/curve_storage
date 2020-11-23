@@ -21,7 +21,8 @@ def transaction(conn):
         conn.rollback()  # Roll back all changes if an exception occurs.
         raise
     else:
-        conn.commit()
+        if not conn.closed:
+            conn.commit()
         
 class SQLDatabase():
     
@@ -360,7 +361,7 @@ class SQLDatabase():
         return float(self.cursor.fetchone()[0])
 
     def get_folder_from_date(self, date):
-        path = os.path.join(self.data_location,time.strftime("%Y/%m/%d",time.gmtime(date)))
+        path = os.path.join(self.data_location,time.strftime("%Y\%m\%d",time.gmtime(date)))
         if not os.path.exists(path):
             os.makedirs(path)
         assert os.path.exists(path)
@@ -368,7 +369,7 @@ class SQLDatabase():
         
     def get_folder_from_id(self, id):
         t = self.get_time_from_id(id)
-        path = os.path.join(self.data_location,time.strftime("%Y/%m/%d",time.gmtime(t)))
+        path = os.path.join(self.data_location,time.strftime("%Y\%m\%d",time.gmtime(t)))
         assert os.path.exists(path)
         return path
     
