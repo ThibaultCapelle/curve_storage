@@ -69,6 +69,11 @@ class SQLDatabase():
         self.cursor.execute('''SELECT max(id) FROM data;''')
         return int(self.cursor.fetchone()[0])
     
+    def get_new_id(self):
+        self.get_cursor()
+        self.cursor.execute('''SELECT nextval(%s);''', ('public.curve_id_seq',))
+        return int(self.cursor.fetchone()[0])
+    
     def get_all_hierarchy(self, project=None):
         self.get_cursor()
         if project is None:
@@ -134,7 +139,7 @@ class SQLDatabase():
         
     def add_entry(self, curve):
         assert curve.id is None
-        curve_id = self.get_highest_key()+1
+        curve_id = self.get_new_id()
         curve.id=curve_id
         try:
             curve.date

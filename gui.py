@@ -181,12 +181,12 @@ class QTreeContextMenu(QMenu):
         self.delete_action=self.addAction("delete")
         self.delete_action.triggered.connect(self.delete)
         self.move_action=self.addAction("move")
-        self.move_action.triggered.connect(self.move)
+        self.move_action.triggered.connect(self.move_curve)
         self.height=self.geometry().height()
         self.setVisible(True)
         self.show()
     
-    def move(self):
+    def move_curve(self):
         self.selected_items=self.tree_widget.selectedItems()
         dialog = QInputDialog(self)
         parent_id, ok=dialog.getInt(self, 'move',
