@@ -192,10 +192,10 @@ class QTreeContextMenu(QMenu):
         parent_id, ok=dialog.getInt(self, 'move',
                                      'what is the desired parent ?')
         if ok:
-            parent=Curve(parent_id)
+            parent=Curve(int(parent_id))
             for item in self.selected_items:
                 curve_id=item.data(0,0)
-                curve = Curve(curve_id)
+                curve = Curve(int(curve_id))
                 curve.move(parent)
             self.tree_widget.compute()
         

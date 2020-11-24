@@ -485,8 +485,11 @@ class Curve:
         assert curve_parent.id not in self.childs
         if self.parent!=self.id:
             parent=Curve(self.parent)
-            parent.childs.remove(self.id)
-            parent.save()
+            try:
+                parent.childs.remove(self.id)
+                parent.save()
+            except ValueError:
+                pass
         self.parent = curve_parent.id
         curve_parent.childs.append(self.id)
         self.save()
