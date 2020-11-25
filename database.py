@@ -292,6 +292,17 @@ class SQLDatabase():
         else:
             return None
     
+    def get_curve_childs_and_parent(self, curve_id):
+        if self.exists(curve_id):
+            self.get_cursor()
+            self.cursor.execute('''SELECT childs, parent FROM data WHERE id=%s;''', (int(curve_id),))
+            res = self.cursor.fetchone()
+            childs = json.loads(res[0])
+            parent = int(res[1])
+            return childs, parent
+        else:
+            return None
+    
     def get_params(self, curve_id):
         if self.exists(curve_id):
             folder=self.get_folder_from_id(curve_id)
@@ -330,27 +341,65 @@ class SQLDatabase():
                                  int(curve.id) ))
     
     def delete_entry(self, curve_id):
-        curve = self.get_curve(curve_id)
-        if curve is not None:
-            for child in curve.childs:
+        #curve = self.get_curve(curve_id)
+        res=self.get_curve_metadata(curve_id)
+        if res is not None:
+            name, date, childs, parent = res
+            for child in childs:
                 self.delete_entry(child)
-            if curve.has_parent():
-                parent = self.get_curve(curve.parent)
-                parent.remove_child(curve_id)
-            filename=os.path.join(curve.directory, '{:}.h5'.format(curve_id))
+            if parent!=curve_id:
+                res=self.get_curve_metadata(parent)
+                if res is not None:
+                    name_parent, date_parent, childs_parent, parent_id = res
+                    childs_parent.remove(curve_id)
+                    with transaction(self.db):
+                        self.get_cursor()
+                        self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
+                                            (json.dumps(childs_parent),
+                                             int(parent)))
+            directory=self.get_folder_from_date(date)
+            filename=os.path.join(directory, '{:}.h5'.format(curve_id))
             if(os.path.exists(filename)):
                 os.remove(filename)
-            if curve.exist_directory():
-                os.chdir(curve.directory)
+            previous_dir=os.getcwd()
+            if str(curve_id) in os.listdir(directory):
+                os.chdir(directory)
                 shutil.rmtree(str(curve_id))
-            directory=curve.directory
             while((len(os.listdir(directory))==0)&(directory!=SQLDatabase.DATA_LOCATION)):
                 os.rmdir(directory)
                 directory=os.path.split(directory)[0]
+            os.chdir(previous_dir)
             with transaction(self.db):
                 self.get_cursor()
                 self.cursor.execute('''DELETE FROM data WHERE id=%s;''',
                                     (int(curve_id),))
+    
+    def move(self, child, parent):
+        res1, res2= (self.get_curve_childs_and_parent(child),
+                     self.get_curve_childs_and_parent(parent))
+        if res2 is not None and res1 is not None:
+            childs_parent, parent_parent=res2
+            childs_child, parent_child=res1
+            childs_parent.append(child)
+            if int(parent_child)!=child:
+                res3=self.get_curve_childs_and_parent(parent_child)
+                if res3 is not None:
+                    childs_parent2, parent_parent2=res3
+                    childs_parent2.remove(child)
+                    with transaction(self.db):
+                        self.get_cursor()
+                        self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
+                                            (json.dumps(childs_parent2),
+                                             int(parent_child)))
+            with transaction(self.db):
+                self.get_cursor()
+                self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
+                                    (json.dumps(childs_parent),
+                                     int(parent)))
+                self.cursor.execute('''UPDATE data SET parent=%s WHERE id=%s;''',
+                                    (json.dumps(parent_child),
+                                     int(child)))
+            
     
     def __del__(self):
         self.close()

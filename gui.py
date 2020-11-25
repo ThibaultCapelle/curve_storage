@@ -14,7 +14,7 @@ from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import sys, time, os, subprocess
-from curve_storage.database import Curve, SQLDatabase
+from curve_storage.database import Curve, SQLDatabase, transaction
 import pyqtgraph as pg
 import numpy as np
 import json
@@ -142,8 +142,9 @@ class DirectoryButton(QPushButton):
     def update(self):
         if self.window().tree_widget.active_item is not None:
             self.current_id=self.window().tree_widget.active_item.data(0,0)
-            curve = SQLDatabase().get_curve(self.current_id)
-            if not curve.exist_directory():
+            db=SQLDatabase()
+            cid, name, date=db.get_name_and_time(self.current_id)
+            if not os.path.exists(db.get_folder_from_date(date)):
                 self.setText('Create directory')
             else:
                 self.setText('Go to directory')
@@ -155,12 +156,14 @@ class DirectoryButton(QPushButton):
             subprocess.Popen(['xdg-open', filename])
     
     def action(self):
-        curve = SQLDatabase().get_curve(self.current_id)
+        db=SQLDatabase()
+        cid, name, date=db.get_name_and_time(self.current_id)
         self.setText('Go to directory')
-        if not curve.exist_directory():
-            curve.get_or_create_dir()
+        directory=db.get_folder_from_date(date)
+        if not str(self.current_id) in os.listdir(directory):
+            os.mkdir(os.path.join(directory,str(self.current_id)))
         else:
-            self.startfile(curve.get_or_create_dir())
+            self.startfile(os.path.join(directory,str(self.current_id)))
 
         
 class QTreeContextMenu(QMenu):
@@ -192,11 +195,10 @@ class QTreeContextMenu(QMenu):
         parent_id, ok=dialog.getInt(self, 'move',
                                      'what is the desired parent ?')
         if ok:
-            parent=Curve(int(parent_id))
+            db=SQLDatabase()
             for item in self.selected_items:
-                curve_id=item.data(0,0)
-                curve = Curve(int(curve_id))
-                curve.move(parent)
+                curve_id=int(item.data(0,0))
+                db.move(curve_id, int(parent_id))
             self.tree_widget.compute()
         
     def delete(self):
