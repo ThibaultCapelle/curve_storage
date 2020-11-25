@@ -79,7 +79,7 @@ class SQLDatabase():
         if project is None:
             self.cursor.execute('''SELECT id, childs, parent FROM data''')
         else:
-            self.cursor.execute('''SELECT id, childs, parent FROM data WHERE project=?''', (project,))
+            self.cursor.execute('''SELECT id, childs, parent FROM data WHERE project=%s''', (project,))
         return self.cursor.fetchall()
     
     def get_name_and_time(self, curve_id):

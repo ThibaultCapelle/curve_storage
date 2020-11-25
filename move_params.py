@@ -11,7 +11,7 @@ db=SQLDatabase()
 
 with transaction(db.db):
     db.get_cursor()
-    db.cursor.execute('''SELECT id FROM data WHERE id=%s''',(10000,))
-    res=db.cursor.fetchone()
+    db.cursor.execute('''SELECT id, project FROM data WHERE project=%s''', ('Electromechanics',))
+    res=db.cursor.fetchall()
     
     
