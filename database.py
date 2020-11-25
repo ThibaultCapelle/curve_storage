@@ -366,15 +366,21 @@ class SQLDatabase():
         return float(self.cursor.fetchone()[0])
 
     def get_folder_from_date(self, date):
-        path = os.path.join(self.data_location,time.strftime("%Y\%m\%d",time.gmtime(date)))
+        path = os.path.join(self.data_location,
+                            time.strftime("%Y",time.gmtime(date)),
+                            time.strftime("%m",time.gmtime(date)),
+                            time.strftime("%d",time.gmtime(date)))
         if not os.path.exists(path):
             os.makedirs(path)
         assert os.path.exists(path)
         return path
         
-    def get_folder_from_id(self, id):
-        t = self.get_time_from_id(id)
-        path = os.path.join(self.data_location,time.strftime("%Y\%m\%d",time.gmtime(t)))
+    def get_folder_from_id(self, curve_id):
+        t = self.get_time_from_id(curve_id)
+        path = os.path.join(self.data_location,
+                            time.strftime("%Y",time.gmtime(t)),
+                            time.strftime("%m",time.gmtime(t)),
+                            time.strftime("%d",time.gmtime(t)))
         assert os.path.exists(path)
         return path
     
