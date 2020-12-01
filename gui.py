@@ -186,22 +186,14 @@ class PlotFigureButton(QPushButton):
         curve=Curve(current_id)
         for i, item in enumerate(items.items):
             rect=item.viewRect()
-            xmin, ymin, xmax, ymax = (rect.left(), rect.bottom(), 
+            l, b, r, t = (rect.left(), rect.bottom(), 
                                       rect.right(), rect.top())
+            xmin, xmax=np.min([l,r]), np.max([l,r])
+            ymin, ymax=np.min([b,t]), np.max([b,t])
             x, y = item.getData()
             plt.figure()
             plt.title('id : {:}'.format(current_id))
-            state=self.window().plot_options.currentText()
-            if state=='dB':
-                plt.plot(np.real(x), 20*np.log10(np.abs(y)), '.')
-            elif state=='Real':
-                plt.plot(np.real(x), np.real(y), '.')
-            elif state=='Imaginary':
-                plt.plot(np.real(x), np.imag(y), '.')
-            elif state=='Smith':
-                plt.plot(np.real(y), np.imag(y), '.')
-            elif state=='Abs':
-                plt.plot(np.real(x), np.abs(y), '.')
+            plt.plot(x, y, '.')
             plt.xlim([xmin, xmax])
             plt.ylim([ymin, ymax])
             plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
