@@ -18,6 +18,7 @@ from curve_storage.database import Curve, SQLDatabase, transaction
 import pyqtgraph as pg
 import numpy as np
 import json
+import matplotlib.pylab as plt
 
 N_ROW_DEFAULT=20
 
@@ -36,6 +37,7 @@ class WindowWidget(QWidget):
         self.layout_center = QVBoxLayout()
         self.layout_right = QVBoxLayout()
         self.layout_top = QHBoxLayout()
+        self.layout_bottom = QHBoxLayout()
         self.plot_widget = PlotWidget()
         
         self.layout_show_first = QHBoxLayout()
@@ -65,7 +67,12 @@ class WindowWidget(QWidget):
         self.layout_center.addWidget(self.plot_widget)
         self.directory_button = DirectoryButton(self.tree_widget)
         self.directory_button.clicked.connect(self.directory_button.action)
-        self.layout_center.addWidget(self.directory_button)
+        self.layout_center.addLayout(self.layout_bottom)
+        self.layout_bottom.addWidget(self.directory_button)
+        self.plot_figure_button = PlotFigureButton(self.tree_widget,
+                                                   self.plot_widget)
+        self.plot_figure_button.clicked.connect(self.plot_figure_button.action)
+        self.layout_bottom.addWidget(self.plot_figure_button)
         
         self.spinbox_changed.connect(self.tree_widget.compute)
         self.compute_button.clicked.connect(self.tree_widget.compute)
@@ -165,6 +172,41 @@ class DirectoryButton(QPushButton):
         else:
             self.startfile(os.path.join(directory,str(self.current_id)))
 
+class PlotFigureButton(QPushButton):
+    
+    def __init__(self, treewidget, plotwidget):
+        super().__init__()
+        self.treewidget=treewidget
+        self.plotwidget=plotwidget
+        self.setText('Plot Figure')
+    
+    def action(self):
+        items=self.plotwidget.getPlotItem()
+        current_id=self.treewidget.active_item.data(0,0)
+        curve=Curve(current_id)
+        for i, item in enumerate(items.items):
+            rect=item.viewRect()
+            xmin, ymin, xmax, ymax = (rect.left(), rect.bottom(), 
+                                      rect.right(), rect.top())
+            x, y = item.getData()
+            plt.figure()
+            plt.title('id : {:}'.format(current_id))
+            state=self.window().plot_options.currentText()
+            if state=='dB':
+                plt.plot(np.real(x), 20*np.log10(np.abs(y)), '.')
+            elif state=='Real':
+                plt.plot(np.real(x), np.real(y), '.')
+            elif state=='Imaginary':
+                plt.plot(np.real(x), np.imag(y), '.')
+            elif state=='Smith':
+                plt.plot(np.real(y), np.imag(y), '.')
+            elif state=='Abs':
+                plt.plot(np.real(x), np.abs(y), '.')
+            plt.xlim([xmin, xmax])
+            plt.ylim([ymin, ymax])
+            plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
+            
+        
         
 class QTreeContextMenu(QMenu):
     
