@@ -77,9 +77,9 @@ class SQLDatabase():
     def get_all_hierarchy(self, project=None):
         self.get_cursor()
         if project is None:
-            self.cursor.execute('''SELECT id, childs, parent FROM data''')
+            self.cursor.execute('''SELECT id, childs, parent, sample FROM data''')
         else:
-            self.cursor.execute('''SELECT id, childs, parent FROM data WHERE project=%s''', (project,))
+            self.cursor.execute('''SELECT id, childs, parent, sample FROM data WHERE project=%s''', (project,))
         return self.cursor.fetchall()
     
     def get_name_and_time(self, curve_id):
@@ -92,6 +92,18 @@ class SQLDatabase():
             return self.cursor.fetchall()
         else:
             self.cursor.execute('''SELECT id, name, date FROM data WHERE id = ANY (%s);''',(curve_id,))
+            return self.cursor.fetchall()
+    
+    def get_name_and_time_and_sample(self, curve_id):
+        self.get_cursor()
+        if not isinstance(curve_id, list) and not(isinstance(curve_id, tuple)):
+            self.cursor.execute('''SELECT id, name, date, sample FROM data WHERE id=%s''', (int(curve_id),))
+            return self.cursor.fetchone()
+        elif isinstance(curve_id, list) and len(curve_id)==1:
+            self.cursor.execute('''SELECT id, name, date, sample FROM data WHERE id=%s''', (int(curve_id[0]),))
+            return self.cursor.fetchall()
+        else:
+            self.cursor.execute('''SELECT id, name, date, sample FROM data WHERE id = ANY (%s);''',(curve_id,))
             return self.cursor.fetchall()
     
     def get_cursor(self):

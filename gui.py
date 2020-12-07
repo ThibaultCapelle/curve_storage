@@ -353,11 +353,12 @@ class TreeWidget(QTreeWidget):
         self.show_specific_project=show_specific_project
         self.project=project
         self.active_ID=None
-        self.setColumnCount(3)
+        self.setColumnCount(4)
         self.length = np.min([SQLDatabase().get_n_keys(), N_ROW_DEFAULT])
-        self.setHeaderLabels(['Id', 'Name', 'Date'])
+        self.setHeaderLabels(['Id', 'Name', 'Date', 'Sample'])
         for i in range(3):
             self.setColumnWidth(i,50)
+        self.setColumnWidth(3,10)
         self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.currentItemChanged.connect(self.current_item_changed)
         self.compute(first_use=True)
@@ -409,20 +410,21 @@ class TreeWidget(QTreeWidget):
         i=0
         to_remove=[]
         while(len(keys)>0 and self.topLevelItemCount()<new_size and i<N):
-            key, childs, parent = keys.pop()
+            key, childs, parent, sample = keys.pop()
             if parent==key and key not in to_remove:
                 curve_id, name, date=database.get_name_and_time(key)
                 item=QTreeWidgetItem()
                 item.setData(0,0,key)
-                item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(float(date)+7200)))
+                item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.localtime(float(date))))
                 item.setData(1,0, name) 
+                item.setData(3,0, sample)
                 if key==self.active_ID:
                     self.setCurrentItem(item)
                 self.addTopLevelItem(item)
                 
                 if childs not in ['[]', '{}']:
                     childs=json.loads(childs)
-                    params_childs=database.get_name_and_time(childs)
+                    params_childs=database.get_name_and_time_and_sample(childs)
                     for child in childs:
                         to_remove+= self.add_child(item, child, keys_copy, params_childs, database)
                 
@@ -448,17 +450,18 @@ class TreeWidget(QTreeWidget):
                         grandchilds=[]
                     break      
             
-            curve_id, name, date=params
+            curve_id, name, date, sample=params
             child_item=QTreeWidgetItem()
             child_item.setData(0,0,str(child))
-            child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.gmtime(date+7200)))
+            child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.localtime(date)))
             child_item.setData(1,0, name)
+            child_item.setData(3,0, sample)
             
             if int(str(child))==self.active_ID:
                 self.setCurrentItem(child_item)
             item.addChild(child_item)
             if len(grandchilds)>0:
-                params_grandchilds=database.get_name_and_time(grandchilds)
+                params_grandchilds=database.get_name_and_time_and_sample(grandchilds)
             for grandchild in grandchilds:
                 res+= self.add_child(child_item, grandchild, keys, 
                                      params_grandchilds, database)
