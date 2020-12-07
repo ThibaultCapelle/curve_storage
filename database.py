@@ -149,14 +149,15 @@ class SQLDatabase():
             curve.parent=curve.id
             with transaction(self.db):
                 self.get_cursor()
-                self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project)
-                      VALUES(%s,%s,%s,%s,%s,%s);''',
+                self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project, sample)
+                      VALUES(%s,%s,%s,%s,%s,%s,%s);''',
                       (int(curve_id),
                       curve.name,
                       float(curve.date),
                       json.dumps(curve.childs),
                       int(curve.parent),
-                      curve.project))
+                      curve.project,
+                      curve.sample))
         curve.directory = self.get_folder_from_date(curve.date)
         curve.parent = curve_id
     
@@ -183,7 +184,7 @@ class SQLDatabase():
             curve_id=args[0]
             if self.exists(curve_id):
                 self.get_cursor()
-                self.cursor.execute('''SELECT name, date, childs, parent, project FROM data WHERE id=%s;''', (int(curve_id),))
+                self.cursor.execute('''SELECT name, date, childs, parent, project, sample FROM data WHERE id=%s;''', (int(curve_id),))
                 res = self.cursor.fetchone()
                 name = res[0]
                 date = float(res[1])
@@ -191,6 +192,7 @@ class SQLDatabase():
                 parent = int(res[3])
                 params = dict()
                 project = res[4]
+                sample = res[5]
                 directory=self.get_folder_from_date(date)
                 if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
                     with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
@@ -201,11 +203,12 @@ class SQLDatabase():
                     return Curve(curve_id, x, y, database=self, name=name,
                                  date=date, childs=childs, parent=parent,
                                  params=params, directory=directory,
-                                 project=project)
+                                 project=project, sample=sample)
                 else:
                     return Curve(curve_id, [], [], database=self, name=name, 
                                  date=date, childs=childs, parent=parent, 
-                                 params=params, directory=directory, project=project)
+                                 params=params, directory=directory,
+                                 project=project, sample=sample)
             else:
                 return None
         elif len(args)==1 and isinstance(args[0], list):
@@ -216,7 +219,7 @@ class SQLDatabase():
                 return [self.get_curve(curve_ids[0])]
             else:
                 self.get_cursor()
-                self.cursor.execute('''SELECT id, name, date, childs, parent, project FROM data WHERE id=ANY(%s);''',(curve_ids,))
+                self.cursor.execute('''SELECT id, name, date, childs, parent, project, sample FROM data WHERE id=ANY(%s);''',(curve_ids,))
                 res=[]
                 for data in self.cursor.fetchall():
                     curve_id = int(data[0])
@@ -226,6 +229,7 @@ class SQLDatabase():
                     parent = int(data[4])
                     params = dict()
                     project = data[5]
+                    sample = data[6]
                     directory=self.get_folder_from_date(date)
                     if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
                         with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
@@ -236,11 +240,12 @@ class SQLDatabase():
                         res.append(Curve(curve_id, x, y, database=self, name=name,
                                      date=date, childs=childs, parent=parent,
                                      params=params, directory=directory,
-                                     project=project))
+                                     project=project, sample=sample))
                     else:
                         res.append(Curve(curve_id, [], [], database=self, name=name, 
                                      date=date, childs=childs, parent=parent, 
-                                     params=params, directory=directory, project=project))
+                                     params=params, directory=directory,
+                                     project=project, sample=sample))
                 return res
         elif len(args)==2:
             if len(args[0])==1:
@@ -250,7 +255,7 @@ class SQLDatabase():
                 assert isinstance(curve_ids, list)
                 assert isinstance(name, str)
                 self.get_cursor()
-                self.cursor.execute('''SELECT id, date, childs, parent, project FROM data WHERE id=ANY(%s) AND name=%s;''',
+                self.cursor.execute('''SELECT id, date, childs, parent, project, sample FROM data WHERE id=ANY(%s) AND name=%s;''',
                                     (args[0], name))
                 res=self.cursor.fetchone()
                 if res is not None:
@@ -260,6 +265,7 @@ class SQLDatabase():
                     parent = int(res[3])
                     params = dict()
                     project = res[4]
+                    sample = res[5]
                     directory=self.get_folder_from_date(date)
                     if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
                         with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
@@ -270,11 +276,12 @@ class SQLDatabase():
                         return Curve(curve_id, x, y, database=self, name=name,
                                      date=date, childs=childs, parent=parent,
                                      params=params, directory=directory,
-                                     project=project)
+                                     project=project, sample=sample)
                     else:
                         return Curve(curve_id, [], [], database=self, name=name, 
                                      date=date, childs=childs, parent=parent, 
-                                     params=params, directory=directory, project=project)
+                                     params=params, directory=directory,
+                                     project=project, sample=sample)
                 else:
                     print('no curve with this name was found')
                     return None
@@ -334,11 +341,12 @@ class SQLDatabase():
             curve.childs=[int(i) for i in curve.childs]
         with transaction(self.db):
             self.get_cursor()
-            self.cursor.execute('''UPDATE data SET name=%s, childs=%s, parent=%s, project=%s WHERE id=%s;''',
+            self.cursor.execute('''UPDATE data SET name=%s, childs=%s, parent=%s, project=%s, sample=%s WHERE id=%s;''',
                                 (curve.name, json.dumps(curve.childs),
                                  int(curve.parent), 
                                  curve.project,
-                                 int(curve.id) ))
+                                 curve.sample,
+                                 int(curve.id)))
     
     def delete_entry(self, curve_id):
         #curve = self.get_curve(curve_id)
@@ -460,6 +468,10 @@ class Curve:
                 self.project=kwargs.pop('project')
             else:
                 self.project=""
+            if 'sample' in kwargs:
+                self.sample=kwargs.pop('sample')
+            else:
+                self.sample=""
             self.params = kwargs
             self.childs = list([])
             self.id=None
@@ -471,7 +483,7 @@ class Curve:
         elif len(args)==3:
             self.id=args[0]
             for key in ['name', 'date', 'childs', 'parent', 'params', 'directory',
-                        'project']:
+                        'project', 'sample']:
                 assert key in kwargs.keys()
             self.name=kwargs.pop('name')
             self.date=kwargs.pop('date')
@@ -480,6 +492,7 @@ class Curve:
             self.params=kwargs.pop('params')
             self.directory=kwargs.pop('directory')
             self.project=kwargs.pop('project')
+            self.sample=kwargs.pop('sample')
             self.x=args[1]
             self.y=args[2]
         elif  len(args)==2 or len(args)==1 and not np.isscalar(args[0]):
@@ -499,6 +512,10 @@ class Curve:
                 self.project=kwargs.pop('project')
             else:
                 self.project=""
+            if 'sample' in kwargs:
+                self.sample=kwargs.pop('sample')
+            else:
+                self.sample=""
             self.params = kwargs
             self.childs = list([])
             self.id=None
@@ -559,6 +576,7 @@ class Curve:
         self.y=curve.y
         self.name=curve.name
         self.project=curve.project
+        self.sample=curve.sample
         self.params=curve.params
         self.date=curve.date
         self.childs=curve.childs
@@ -567,7 +585,7 @@ class Curve:
         self.directory=curve.directory
         
     def duplicate(self):
-        curve=Curve(self.x, self.y, name=self.name, project=self.project, **self.params)
+        curve=Curve(self.x, self.y, name=self.name, project=self.project, sample=self.sample, **self.params)
         print('id is {:}, name is {:}, project is {:}'.format(curve.id, curve.name, curve.project))
         childs=[]
         for child in self.childs:
