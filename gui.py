@@ -495,10 +495,13 @@ class PlotWidget(pg.PlotWidget):
             curve = SQLDatabase().get_curve(curve_id)
             x, y_r, y_i, y_abs=(np.real(curve.x), np.real(curve.y),
                                 np.imag(curve.y), np.abs(curve.y))
+            
             self.getPlotItem().clear()
             
             state=self.window().plot_options.currentText()
             if state=='dB':
+                x=x[y_abs!=0]
+                y_abs=y_abs[y_abs!=0]
                 self.getPlotItem().plot(x, 20*np.log10(y_abs))
             elif state=='Real':
                 self.getPlotItem().plot(x, y_r)
