@@ -189,8 +189,8 @@ class SQLDatabase():
         retrieve a curve. 
         -With a single scalar argument, return the Curve object with the id equal to this argument.
         -With a list of scalar argument, return a list of Curve objects with the ids equal to the list members
-        -With a list of scalar as a first argument, and a string as a second argument, return the Curve object
-        whose name matches the string and whose id belongs to the list
+        -With a list of scalar as a first argument, and a string as a second argument, return a list of all the Curve objects
+        whose names match the string and whose ids belong to the list
         '''
         if (len(args)>=1 and np.isscalar(args[0])):
             curve_id=args[0]
@@ -269,34 +269,36 @@ class SQLDatabase():
                 self.get_cursor()
                 self.cursor.execute('''SELECT id, date, childs, parent, project, sample FROM data WHERE id=ANY(%s) AND name=%s;''',
                                     (args[0], name))
-                res=self.cursor.fetchone()
-                if res is not None:
-                    curve_id = int(res[0])
-                    date = float(res[1])
-                    childs = json.loads(res[2])
-                    parent = int(res[3])
-                    params = dict()
-                    project = res[4]
-                    sample = res[5]
-                    directory=self.get_folder_from_date(date)
-                    if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
-                        with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
-                            data=f['data']
-                            x=data[0]
-                            y=data[1]
-                            params=self.extract_dictionary(params, data.attrs)
-                        return Curve(curve_id, x, y, database=self, name=name,
-                                     date=date, childs=childs, parent=parent,
-                                     params=params, directory=directory,
-                                     project=project, sample=sample)
-                    else:
-                        return Curve(curve_id, [], [], database=self, name=name, 
-                                     date=date, childs=childs, parent=parent, 
-                                     params=params, directory=directory,
-                                     project=project, sample=sample)
+                results=self.cursor.fetchall()
+                curves=[]
+                if results is not None:
+                    for res in results:
+                        curve_id = int(res[0])
+                        date = float(res[1])
+                        childs = json.loads(res[2])
+                        parent = int(res[3])
+                        params = dict()
+                        project = res[4]
+                        sample = res[5]
+                        directory=self.get_folder_from_date(date)
+                        if os.path.exists(os.path.join(directory, '{:}.h5'.format(curve_id))):
+                            with h5py.File(os.path.join(directory, '{:}.h5'.format(curve_id)), 'r') as f:
+                                data=f['data']
+                                x=data[0]
+                                y=data[1]
+                                params=self.extract_dictionary(params, data.attrs)
+                            curves.append(Curve(curve_id, x, y, database=self, name=name,
+                                         date=date, childs=childs, parent=parent,
+                                         params=params, directory=directory,
+                                         project=project, sample=sample))
+                        else:
+                            curves.append(Curve(curve_id, [], [], database=self, name=name, 
+                                         date=date, childs=childs, parent=parent, 
+                                         params=params, directory=directory,
+                                         project=project, sample=sample))
                 else:
-                    print('no curve with this name was found')
-                    return None
+                    print('no curves with this name were found')
+                return curves
             
     def get_curve_metadata(self, curve_id):
         if self.exists(curve_id):
