@@ -7,9 +7,9 @@ Created on Thu Dec  6 15:11:28 2018
 
 from PyQt5.QtWidgets import (QApplication,
 QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
-QLineEdit, QTableWidget, QSpinBox, QTableWidgetItem, QAbstractItemView,
-QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu, QPushButton, QComboBox,
-QInputDialog)
+QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem, 
+QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
+QPushButton, QComboBox, QInputDialog)
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -25,8 +25,6 @@ N_ROW_DEFAULT=20
 class WindowWidget(QWidget):
     
     spinbox_changed = QtCore.Signal()
-    '''database_changed = QtCore.QFileSystemWatcher([os.path.join(SQLDatabase.DATABASE_LOCATION,
-                                                               SQLDatabase.DATABASE_NAME)])'''
     row_changed = QtCore.Signal()
     
     
@@ -66,19 +64,21 @@ class WindowWidget(QWidget):
         self.layout_top.addWidget(self.plot_options)
         self.layout_center.addWidget(self.plot_widget)
         self.directory_button = DirectoryButton(self.tree_widget)
-        self.directory_button.clicked.connect(self.directory_button.action)
+        self.comment=Comment(self.tree_widget)
+        self.layout_center.addWidget(self.comment)
         self.layout_center.addLayout(self.layout_bottom)
         self.layout_bottom.addWidget(self.directory_button)
         self.plot_figure_button = PlotFigureButton(self.tree_widget,
                                                    self.plot_widget)
-        self.plot_figure_button.clicked.connect(self.plot_figure_button.action)
         self.layout_bottom.addWidget(self.plot_figure_button)
-        
+        self.save_button = SaveButton(self.tree_widget, self.comment)
+        self.layout_bottom.addWidget(self.save_button)
         self.spinbox_changed.connect(self.tree_widget.compute)
         self.compute_button.clicked.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
         self.row_changed.connect(self.param_widget.actualize)
         self.row_changed.connect(self.directory_button.update)
+        self.row_changed.connect(self.comment.update)
         self.changing_tree=False
         #self.database_changed.fileChanged.connect(self.database_changed_slot)
         self.spinbox_widget.setValue(20)
@@ -96,12 +96,6 @@ class WindowWidget(QWidget):
     
     def resizeEvent(self, event):
         self.tree_widget.move()
-    '''
-    def database_changed_slot(self, path):
-        print('database changed, changing_tree:{:}, path:{:}'.format(self.changing_tree, path))
-        if not self.changing_tree:
-            self.changing_tree=True
-            self.tree_widget.compute()'''
 
 class Project(QLineEdit):
     
@@ -126,6 +120,18 @@ class Project(QLineEdit):
     def text_changed_slot(self, text):
         if not self.isHidden():
             self.parent.tree_widget.compute()
+
+class Comment(QTextEdit):
+
+    def __init__(self, treewidget):
+        super().__init__()
+        self.treewidget=treewidget
+        self.setFixedHeight(30)
+    
+    def update(self):
+        self.current_id=self.treewidget.active_item.data(0,0)
+        curve=Curve(self.current_id)
+        self.setPlainText(curve.comment)
         
 class plotOptions(QComboBox):
     
@@ -145,6 +151,7 @@ class DirectoryButton(QPushButton):
         super().__init__()
         self.treewidget=treewidget
         self.current_id=None
+        self.clicked.connect(self.action)
 
     def update(self):
         if self.window().tree_widget.active_item is not None:
@@ -179,6 +186,7 @@ class PlotFigureButton(QPushButton):
         self.treewidget=treewidget
         self.plotwidget=plotwidget
         self.setText('Plot Figure')
+        self.clicked.connect(self.action)
     
     def action(self):
         items=self.plotwidget.getPlotItem()
@@ -197,9 +205,23 @@ class PlotFigureButton(QPushButton):
             plt.xlim([xmin, xmax])
             plt.ylim([ymin, ymax])
             plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
-            
-        
-        
+
+class SaveButton(QPushButton):
+
+    def __init__(self, treewidget, comment):
+        super().__init__()
+        self.treewidget=treewidget
+        self.comment=comment
+        self.setText('Save comment')  
+        self.clicked.connect(self.action)
+    
+    def action(self):
+        if hasattr(self.treewidget, 'active_item'):
+            current_id=self.treewidget.active_item.data(0,0)
+            curve=Curve(current_id)
+            curve.comment=self.comment.toPlainText()
+            curve.save()
+                   
 class QTreeContextMenu(QMenu):
     
     def __init__(self, item):
