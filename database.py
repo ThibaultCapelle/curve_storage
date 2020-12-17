@@ -486,7 +486,12 @@ class Curve:
                 self.sample=kwargs.pop('sample')
             else:
                 self.sample=""
+            if 'comment' in kwargs:
+                self.comment=kwargs.pop('comment')
+            else:
+                self.comment=""
             self.params = kwargs
+            
             self.childs = list([])
             self.id=None
             self.parent=None
@@ -504,6 +509,10 @@ class Curve:
             self.childs=kwargs.pop('childs')
             self.parent=kwargs.pop('parent')
             self.params=kwargs.pop('params')
+            if 'comment' in self.params.keys():
+                self.comment=self.params.pop('comment')
+            else:
+                self.comment=""
             self.directory=kwargs.pop('directory')
             self.project=kwargs.pop('project')
             self.sample=kwargs.pop('sample')
@@ -530,6 +539,10 @@ class Curve:
                 self.sample=kwargs.pop('sample')
             else:
                 self.sample=""
+            if 'comment' in kwargs:
+                self.comment=kwargs.pop('comment')
+            else:
+                self.comment=""
             self.params = kwargs
             self.childs = list([])
             self.id=None
@@ -541,9 +554,11 @@ class Curve:
         
     def save(self):
         self.database.save(self)
+        params=self.params.copy()
+        params['comment']=self.comment
         with h5py.File(os.path.join(self.directory, '{:}.h5'.format(self.id)), 'w') as f:
             data=f.create_dataset('data', data=np.vstack((self.x, self.y)))
-            for key, val in self.params.items():
+            for key, val in params.items():
                 if val is None:
                     data.attrs[key]='NONE'
                 elif isinstance(val, dict):
@@ -597,6 +612,7 @@ class Curve:
         self.parent=curve.parent
         self.database=curve.database
         self.directory=curve.directory
+        self.comment=curve.comment
         
     def duplicate(self):
         curve=Curve(self.x, self.y, name=self.name, project=self.project, sample=self.sample, **self.params)
