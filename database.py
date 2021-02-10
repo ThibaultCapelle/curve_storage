@@ -417,7 +417,7 @@ class SQLDatabase():
                                     (json.dumps(childs_parent),
                                      int(parent)))
                 self.cursor.execute('''UPDATE data SET parent=%s WHERE id=%s;''',
-                                    (json.dumps(parent_child),
+                                    (json.dumps(parent),
                                      int(child)))
             
     
