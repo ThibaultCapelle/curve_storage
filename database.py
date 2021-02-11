@@ -373,12 +373,13 @@ class SQLDatabase():
                 res=self.get_curve_metadata(parent)
                 if res is not None:
                     name_parent, date_parent, childs_parent, parent_id = res
-                    childs_parent.remove(curve_id)
-                    with transaction(self.db):
-                        self.get_cursor()
-                        self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
-                                            (json.dumps(childs_parent),
-                                             int(parent)))
+                    if curve_id in childs_parent:
+                        childs_parent.remove(curve_id)
+                        with transaction(self.db):
+                            self.get_cursor()
+                            self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
+                                                (json.dumps(childs_parent),
+                                                 int(parent)))
             directory=self.get_folder_from_date(date)
             filename=os.path.join(directory, '{:}.h5'.format(curve_id))
             if(os.path.exists(filename)):
@@ -397,30 +398,31 @@ class SQLDatabase():
                                     (int(curve_id),))
     
     def move(self, child, parent):
-        res1, res2= (self.get_curve_childs_and_parent(child),
-                     self.get_curve_childs_and_parent(parent))
-        if res2 is not None and res1 is not None:
-            childs_parent, parent_parent=res2
-            childs_child, parent_child=res1
-            childs_parent.append(child)
-            if int(parent_child)!=child:
-                res3=self.get_curve_childs_and_parent(parent_child)
-                if res3 is not None:
-                    childs_parent2, parent_parent2=res3
-                    childs_parent2.remove(child)
-                    with transaction(self.db):
-                        self.get_cursor()
-                        self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
-                                            (json.dumps(childs_parent2),
-                                             int(parent_child)))
-            with transaction(self.db):
-                self.get_cursor()
-                self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
-                                    (json.dumps(childs_parent),
-                                     int(parent)))
-                self.cursor.execute('''UPDATE data SET parent=%s WHERE id=%s;''',
-                                    (json.dumps(parent),
-                                     int(child)))
+        if child != parent:
+            res1, res2= (self.get_curve_childs_and_parent(child),
+                         self.get_curve_childs_and_parent(parent))
+            if res2 is not None and res1 is not None:
+                childs_parent, parent_parent=res2
+                childs_child, parent_child=res1
+                childs_parent.append(child)
+                if int(parent_child)!=child:
+                    res3=self.get_curve_childs_and_parent(parent_child)
+                    if res3 is not None:
+                        childs_parent2, parent_parent2=res3
+                        childs_parent2.remove(child)
+                        with transaction(self.db):
+                            self.get_cursor()
+                            self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
+                                                (json.dumps(childs_parent2),
+                                                 int(parent_child)))
+                with transaction(self.db):
+                    self.get_cursor()
+                    self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
+                                        (json.dumps(childs_parent),
+                                         int(parent)))
+                    self.cursor.execute('''UPDATE data SET parent=%s WHERE id=%s;''',
+                                        (json.dumps(parent),
+                                         int(child)))
             
     
     def __del__(self):
@@ -454,11 +456,11 @@ class SQLDatabase():
                             time.strftime("%d",time.gmtime(t)))
         assert os.path.exists(path)
         return path
-    
+    '''
     def delete_all_data(self):
         while(self.get_n_keys()>0):
             curve_id=self.get_one_id()
-            self.delete_entry(curve_id)
+            self.delete_entry(curve_id)'''
     
     def close(self):
         self.db.close()

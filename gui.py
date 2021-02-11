@@ -147,7 +147,7 @@ class plotOptions(QComboBox):
 
 class DirectoryButton(QPushButton):
 
-    def __init(self, treewidget):
+    def __init__(self, treewidget):
         super().__init__()
         self.treewidget=treewidget
         self.current_id=None
@@ -158,7 +158,8 @@ class DirectoryButton(QPushButton):
             self.current_id=self.window().tree_widget.active_item.data(0,0)
             db=SQLDatabase()
             cid, name, date=db.get_name_and_time(self.current_id)
-            if not os.path.exists(db.get_folder_from_date(date)):
+            if not os.path.exists(os.path.join(db.get_folder_from_date(date),
+                                               str(self.current_id))):
                 self.setText('Create directory')
             else:
                 self.setText('Go to directory')
@@ -262,7 +263,8 @@ class QTreeContextMenu(QMenu):
         selection=self.selected_items
         for item in selection:
             curve_id=item.data(0,0)
-            SQLDatabase().delete_entry(curve_id)
+            db=SQLDatabase()
+            db.delete_entry(curve_id)
         self.tree_widget.compute()
 
 class QParamsContextMenu(QMenu):
@@ -384,14 +386,10 @@ class TreeWidget(QTreeWidget):
         self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.currentItemChanged.connect(self.current_item_changed)
         self.compute(first_use=True)
-        #self.itemActivated.connect(self.activation)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
     
-    def activation(self):
-        print('item activated !')
-        
     def move(self):
         if self.contextMenu is not None:
             self.contextMenu.move()
@@ -544,7 +542,7 @@ if app is None:
 window = WindowWidget()
 #curve_1=Curve([0,1,2,3])
 #curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
-
-sys.exit(app.exec_())
+app.exec_()
+#sys.exit(app.exec_())
 
 
