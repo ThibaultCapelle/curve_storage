@@ -88,14 +88,14 @@ class WindowWidget(QWidget):
         self.show()
         self.move(0,0)
         
-    def moveEvent(self,event):
-        self.tree_widget.move()
+    '''def moveEvent(self,event):
+        self.tree_widget.move()'''
         
     def mousePressEvent(self, event):
         self.tree_widget.move()
     
-    def resizeEvent(self, event):
-        self.tree_widget.move()
+    '''def resizeEvent(self, event):
+        self.tree_widget.move()'''
 
 class Project(QLineEdit):
     
@@ -129,9 +129,11 @@ class Comment(QTextEdit):
         self.setFixedHeight(30)
     
     def update(self):
-        self.current_id=self.treewidget.active_item.data(0,0)
-        curve=Curve(self.current_id)
-        self.setPlainText(curve.comment)
+        active_item=self.treewidget.active_item
+        if active_item is not None:
+            self.current_id=active_item.data(0,0)
+            curve=Curve(self.current_id)
+            self.setPlainText(curve.comment)
         
 class plotOptions(QComboBox):
     
@@ -390,9 +392,9 @@ class TreeWidget(QTreeWidget):
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
     
-    def move(self):
+    '''def move(self):
         if self.contextMenu is not None:
-            self.contextMenu.move()
+            self.contextMenu.move()'''
             
     def RightClickMenu(self, point):
         item=self.itemAt(point)
