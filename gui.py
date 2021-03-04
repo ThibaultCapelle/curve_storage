@@ -91,8 +91,8 @@ class WindowWidget(QWidget):
     '''def moveEvent(self,event):
         self.tree_widget.move()'''
         
-    def mousePressEvent(self, event):
-        self.tree_widget.move()
+    '''def mousePressEvent(self, event):
+        self.tree_widget.move()'''
     
     '''def resizeEvent(self, event):
         self.tree_widget.move()'''
