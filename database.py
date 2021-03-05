@@ -390,12 +390,12 @@ class SQLDatabase():
             name, date, childs, parent = res
             for child in childs:
                 self.delete_entry(child)
-            if parent!=curve_id:
+            if parent!=int(curve_id):
                 res=self.get_curve_metadata(parent)
                 if res is not None:
                     name_parent, date_parent, childs_parent, parent_id = res
-                    if curve_id in childs_parent:
-                        childs_parent.remove(curve_id)
+                    if int(curve_id) in childs_parent:
+                        childs_parent.remove(int(curve_id))
                         with transaction(self.db):
                             self.get_cursor()
                             self.cursor.execute('''UPDATE data SET childs=%s WHERE id=%s;''',
