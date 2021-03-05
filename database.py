@@ -74,13 +74,34 @@ class SQLDatabase():
         self.cursor.execute('''SELECT nextval(%s);''', ('public.curve_id_seq',))
         return int(self.cursor.fetchone()[0])
     
-    def get_all_hierarchy(self, project=None):
-        self.get_cursor()
+    def get_all_hierarchy(self, project=None, N=-1):
         if project is None:
-            self.cursor.execute('''SELECT id, childs, parent, sample FROM data''')
+            self.cursor.execute('''SELECT id FROM data WHERE id=parent''')
         else:
-            self.cursor.execute('''SELECT id, childs, parent, sample FROM data WHERE project=%s''', (project,))
-        return self.cursor.fetchall()
+            self.cursor.execute('''SELECT id FROM data WHERE id=parent AND project=%s''', (project,))
+        res=self.cursor.fetchall()
+        res.sort()
+        if N!=-1:
+            res=res[::-1][:N]
+        else:
+            res=res[::-1]
+        self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=ANY(%s);''',
+                  (res,))
+        res=self.cursor.fetchall()
+        hierarchy=[res]
+        childs=[]
+        for k in res:
+            childs+=json.loads(k[1])
+        while(len(childs)>0):
+            self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=ANY(%s);''',
+                              (childs,))
+            res=self.cursor.fetchall()
+            hierarchy.append(res)
+            childs=[]
+            for k in res:
+                childs+=json.loads(k[1])
+        self.get_cursor()
+        return hierarchy
     
     def get_name_and_time(self, curve_id):
         self.get_cursor()

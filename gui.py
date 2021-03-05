@@ -417,75 +417,42 @@ class TreeWidget(QTreeWidget):
         else:
             project=None
         self.clear()
+        #t_ini=time.time()
         database=SQLDatabase()
-        keys = database.get_all_hierarchy(project=project)
-        if project is not None:
-            keys_copy=database.get_all_hierarchy(project=None)
-        else:
-            keys_copy=keys.copy()  
-        keys.sort()
-        keys_copy.sort()
-        N=len(keys)
-        new_size=np.min([N,new_size])
-        i=0
-        to_remove=[]
-        while(len(keys)>0 and self.topLevelItemCount()<new_size and i<N):
-            key, childs, parent, sample = keys.pop()
-            if parent==key and key not in to_remove:
-                curve_id, name, date=database.get_name_and_time(key)
+        hierarchy = database.get_all_hierarchy(project=project, N=new_size)
+        #print('get hierarchy took {:}s'.format(time.time()-t_ini))
+        if len(hierarchy)>0:
+            for curve_id, childs, name, date, sample in hierarchy[0]:
+                childs=json.loads(childs)
                 item=QTreeWidgetItem()
-                item.setData(0,0,key)
+                item.setData(0,0,curve_id)
                 item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.localtime(float(date))))
                 item.setData(1,0, name) 
                 item.setData(3,0, sample)
-                if key==self.active_ID:
+                if curve_id==self.active_ID:
                     self.setCurrentItem(item)
                 self.addTopLevelItem(item)
-                
-                if childs not in ['[]', '{}']:
-                    childs=json.loads(childs)
-                    params_childs=database.get_name_and_time_and_sample(childs)
-                    for child in childs:
-                        to_remove+= self.add_child(item, child, keys_copy, params_childs, database)
-                
-            i=i+1
-        self.sortItems(2,QtCore.Qt.DescendingOrder)
-        self.window().changing_tree=False
+                self.add_childs(item,hierarchy,childs,1)
+        #print('whole compute took {:}s'.format(time.time()-t_ini))
         
-        
-    def add_child(self, item, child, keys, params_childs, database):
-        res=[child]
-        params=None
-        for val in params_childs:
-            if(int(val[0])==child):
-                params=val
-        
-        #params=SQLDatabase().get_name_and_time(child)
-        if params is not None:
-            for key in keys:
-                if key[0]==child:
-                    if key[1] not in ['[]', '{}']:
-                        grandchilds=json.loads(key[1])
-                    else:
-                        grandchilds=[]
-                    break      
-            
-            curve_id, name, date, sample=params
-            child_item=QTreeWidgetItem()
-            child_item.setData(0,0,str(child))
-            child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.localtime(date)))
-            child_item.setData(1,0, name)
-            child_item.setData(3,0, sample)
-            
-            if int(str(child))==self.active_ID:
-                self.setCurrentItem(child_item)
-            item.addChild(child_item)
-            if len(grandchilds)>0:
-                params_grandchilds=database.get_name_and_time_and_sample(grandchilds)
-            for grandchild in grandchilds:
-                res+= self.add_child(child_item, grandchild, keys, 
-                                     params_grandchilds, database)
-        return res
+    def add_childs(self, item, hierarchy, childs, level):
+        if len(hierarchy)>level and len(childs)>0:
+            keys=hierarchy[level]
+            for child in childs:
+                for key in keys:
+                    if key[0]==child:
+                        curve_id, gchilds, name, date, sample = key 
+                        child_item=QTreeWidgetItem()
+                        child_item.setData(0,0,str(curve_id))
+                        child_item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.localtime(date)))
+                        child_item.setData(1,0, name)
+                        child_item.setData(3,0, sample)
+                        gchilds=json.loads(gchilds)
+                        if int(str(child))==self.active_ID:
+                            self.setCurrentItem(child_item)
+                        item.addChild(child_item)
+                        self.add_childs(child_item, hierarchy, gchilds, level+1)
+                        break
         
 
 class SpinBoxWidget(QSpinBox):
