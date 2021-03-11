@@ -76,16 +76,16 @@ class SQLDatabase():
     
     def get_all_hierarchy(self, project=None, N=-1):
         if project is None:
-            self.cursor.execute('''SELECT id FROM data WHERE id=parent''')
+            self.cursor.execute('''SELECT id FROM data WHERE id=parent ORDER BY id;''')
         else:
-            self.cursor.execute('''SELECT id FROM data WHERE id=parent AND project=%s''', (project,))
+            self.cursor.execute('''SELECT id FROM data WHERE id=parent AND project=%s ORDER BY id''', (project,))
         res=self.cursor.fetchall()
-        res.sort()
         if N!=-1:
             res=res[::-1][:N]
         else:
             res=res[::-1]
-        self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=ANY(%s);''',
+            
+        self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=ANY(%s) ORDER BY id DESC;''',
                   (res,))
         res=self.cursor.fetchall()
         hierarchy=[res]
@@ -93,7 +93,7 @@ class SQLDatabase():
         for k in res:
             childs+=json.loads(k[1])
         while(len(childs)>0):
-            self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=ANY(%s);''',
+            self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=ANY(%s) ORDER BY id DESC;''',
                               (childs,))
             res=self.cursor.fetchall()
             hierarchy.append(res)
