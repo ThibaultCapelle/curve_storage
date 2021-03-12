@@ -75,6 +75,7 @@ class SQLDatabase():
         return int(self.cursor.fetchone()[0])
     
     def get_all_hierarchy(self, project=None, N=-1):
+        self.get_cursor()
         if project is None:
             self.cursor.execute('''SELECT id FROM data WHERE id=parent ORDER BY id;''')
         else:
