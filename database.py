@@ -77,17 +77,15 @@ class SQLDatabase():
     def get_all_hierarchy(self, project=None, N=-1):
         self.get_cursor()
         if project is None:
-            self.cursor.execute('''SELECT id FROM data WHERE id=parent ORDER BY id;''')
+            if N!=-1:
+                self.cursor.execute('''SELECT id FROM data WHERE id=parent ORDER BY id DESC FETCH FIRST %s rows only''',(N,))
+            else:
+                self.cursor.execute('''SELECT id FROM data WHERE id=parent ORDER BY id DESC''')
         else:
-            self.cursor.execute('''SELECT id FROM data WHERE id=parent AND project=%s ORDER BY id''', (project,))
-        res=self.cursor.fetchall()
-        if N!=-1:
-            res=res[::-1][:N]
-        else:
-            res=res[::-1]
-            
-        self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=ANY(%s) ORDER BY id DESC;''',
-                  (res,))
+            if N!=-1:
+                self.cursor.execute('''SELECT id FROM data WHERE id=parent AND project=%s ORDER BY id DESC FETCH FIRST %s rows only''', (project, N,))
+            else:
+                self.cursor.execute('''SELECT id FROM data WHERE id=parent AND project=%s ORDER BY id DESC''', (project,))
         res=self.cursor.fetchall()
         hierarchy=[res]
         childs=[]
