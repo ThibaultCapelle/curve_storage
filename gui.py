@@ -21,6 +21,7 @@ import numpy as np
 import json
 import matplotlib.pylab as plt
 from psycopg2 import sql
+from datetime import datetime as datetime
 
 N_ROW_DEFAULT=20
 
@@ -140,9 +141,31 @@ class NewFilterWidget(QGroupBox):
         self.hide()
     
     def get_query(self):
-        return Filter(self.item1.currentText(),
-                      self.item2.currentText(),
-                      self.item3.text())
+        if self.item1.currentText() in ['id', 'parent']:
+            return Filter(self.item1.currentText(),
+                          self.item2.currentText(),
+                          self.item3.text())
+        if self.item1.currentText()=='date':
+            date=self.calendar.selectedDate()
+            if self.item2.currentText() in ['<','>=']:
+                t=datetime(date.year(), date.month(), date.day()).timestamp()
+                return Filter(self.item1.currentText(),
+                              self.item2.currentText(),
+                              str(t))
+            elif self.item2.currentText() in ['>','<=']:
+                t=datetime(date.year(), date.month(), date.day()+1).timestamp()
+                return Filter(self.item1.currentText(),
+                              self.item2.currentText(),
+                              str(t))
+            elif self.item2.currentText()=='=':
+                t1=datetime(date.year(), date.month(), date.day()).timestamp()
+                t2=datetime(date.year(), date.month(), date.day()+1).timestamp()
+                return [Filter(self.item1.currentText(),
+                              '>',
+                              str(t1)),
+                        Filter(self.item1.currentText(),
+                              '<',
+                              str(t2))]
         
 
 class FilterWidget(QGroupBox):
@@ -187,8 +210,13 @@ class FilterWidget(QGroupBox):
         filters=[Filter("id","=","parent")]
         for f in self.filters:
             if f.activate_box.isChecked():
-                filters.append(f.get_query())
-        placeholders=[f.item3.text() for f in self.filters if f.activate_box.isChecked()]
+                res=f.get_query()
+                if isinstance(res, list):
+                    for q in res:
+                       filters.append(q)
+                else:
+                    filters.append(res)
+        placeholders=[f.item2 for f in filters if  f.placeholder]
         query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{firsts}")\
         .format(fields=sql.SQL(' AND ').join(filters),
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
