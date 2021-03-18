@@ -127,9 +127,19 @@ class NewFilterWidget(QGroupBox):
         if text=='date':
             self.item3.hide()
             self.calendar.show()
+            self.item2.clear()
+            for operation in ['<','<=','=','>','>=']:
+                self.item2.addItem(operation)
+        elif text in ['name', 'project', 'sample']:
+            self.item2.clear()
+            for operation in ['=']:
+                self.item2.addItem(operation)
         else:
             self.calendar.hide()
             self.item3.show()
+            self.item2.clear()
+            for operation in ['<','<=','=','>','>=']:
+                self.item2.addItem(operation)
         
     def remove(self):
         for widget in [self.remove_button,self.item1,
@@ -141,7 +151,7 @@ class NewFilterWidget(QGroupBox):
         self.hide()
     
     def get_query(self):
-        if self.item1.currentText() in ['id', 'parent']:
+        if self.item1.currentText() in ['id', 'parent', 'sample', 'project', 'name']:
             return Filter(self.item1.currentText(),
                           self.item2.currentText(),
                           self.item3.text())

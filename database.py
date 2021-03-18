@@ -26,7 +26,7 @@ def transaction(conn):
 
 class Filter(sql.Composed):
     
-    columns=["parent", "id", "name", "date", "sample", "childs"]
+    columns=["parent", "id", "name", "date", "sample", "project"]
     
     def __init__(self, item1, relation, item2):
         self.item1=sql.Identifier(item1)
