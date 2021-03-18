@@ -30,7 +30,7 @@ class Filter(sql.Composed):
     
     def __init__(self, item1, relation, item2):
         self.item1=sql.Identifier(item1)
-        self.relation=sql.SQL("=")
+        self.relation=sql.SQL(relation)
         if item2 not in Filter.columns:
             self.placeholder=True
             self.item2=item2
@@ -100,16 +100,6 @@ class SQLDatabase():
             self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=parent ORDER BY id DESC''')
         else:
             self.cursor.execute(query, placeholders)
-        if project is None:
-            if N!=-1:
-                self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=parent ORDER BY id DESC FETCH FIRST %s rows only''',(N,))
-            else:
-                self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=parent ORDER BY id DESC''')
-        else:
-            if N!=-1:
-                self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=parent AND project=%s ORDER BY id DESC FETCH FIRST %s rows only''', (project, N,))
-            else:
-                self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=parent AND project=%s ORDER BY id DESC''', (project,))
         res=self.cursor.fetchall()
         hierarchy=[res]
         childs=[]

@@ -9,12 +9,13 @@ from PyQt5.QtWidgets import (QApplication,
 QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem, 
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
-QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton)
+QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
+QCalendarWidget )
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import sys, time, os, subprocess
-from curve_storage.database import Curve, SQLDatabase, transaction
+from curve_storage.database import Curve, SQLDatabase, transaction, Filter
 import pyqtgraph as pg
 import numpy as np
 import json
@@ -93,16 +94,56 @@ class WindowWidget(QWidget):
 
 class NewFilterWidget(QGroupBox):
     
-    def __init__(self, filter_widget):
-        super.__init__(parent=filter_widget)
+    def __init__(self, parent, filter_widget):
+        super().__init__(parent=parent)
+        self.parent=parent
         self.filter_widget=filter_widget
         self.global_layout=QHBoxLayout()
         self.setLayout(self.global_layout)
-        self.item1=QtCore.QStringList()
+        self.item1=QComboBox()
+        for column in Filter.columns:
+            self.item1.addItem(column)
         self.global_layout.addWidget(self.item1)
-        self.global_layout.addWidget(QPushButton('yolo'))
-        self.show()
-        print('youpi')
+        self.item2=QComboBox()
+        for operation in ['<','<=','=','>','>=']:
+            self.item2.addItem(operation)
+        self.global_layout.addWidget(self.item2)
+        self.item3=QLineEdit()
+        self.global_layout.addWidget(self.item3)
+        self.calendar=QCalendarWidget()
+        self.global_layout.addWidget(self.calendar)
+        self.calendar.hide()
+        self.remove_button=QToolButton()
+        self.remove_button.setIcon(QtGui.QIcon('minus.png'))
+        self.global_layout.addWidget(self.remove_button)
+        self.remove_button.clicked.connect(self.remove)
+        self.activate_box = QCheckBox('activate')
+        
+        self.global_layout.addWidget(self.activate_box)
+        self.item1.currentTextChanged.connect(self.columnchanged)
+        
+    def columnchanged(self, text):
+        if text=='date':
+            self.item3.hide()
+            self.calendar.show()
+        else:
+            self.calendar.hide()
+            self.item3.show()
+        
+    def remove(self):
+        for widget in [self.remove_button,self.item1,
+                       self.item2, self.item3,
+                       self.activate_box]:
+            widget.hide()
+            self.global_layout.removeWidget(widget)
+        self.filter_widget.remove_filter(self)
+        self.hide()
+    
+    def get_query(self):
+        return Filter(self.item1.currentText(),
+                      self.item2.currentText(),
+                      self.item3.text())
+        
 
 class FilterWidget(QGroupBox):
     
@@ -115,7 +156,6 @@ class FilterWidget(QGroupBox):
         self.setLayout(self.global_layout)
         self.add_button=QToolButton()
         self.add_button.setIcon(QtGui.QIcon('plus.png'))
-        self.add_button.setStyleSheet("#SnapShotButton {border : none;}")
         self.add_button.clicked.connect(self.add)
         self.global_layout.addWidget(self.add_button)
         self.filters=[]
@@ -133,10 +173,28 @@ class FilterWidget(QGroupBox):
             pass
     
     def add(self):
-        new_filter=NewFilterWidget(self)
+        new_filter=NewFilterWidget(self.parent, self)
         self.global_layout.addWidget(new_filter)
+        new_filter.resize(10,10)
         self.filters.append(new_filter)
         self.show()
+    
+    def remove_filter(self, filt):
+        self.global_layout.removeWidget(filt)
+        self.filters.remove(filt)
+    
+    def get_query(self):
+        filters=[Filter("id","=","parent")]
+        for f in self.filters:
+            if f.activate_box.isChecked():
+                filters.append(f.get_query())
+        placeholders=[f.item3.text() for f in self.filters if f.activate_box.isChecked()]
+        query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{firsts}")\
+        .format(fields=sql.SQL(' AND ').join(filters),
+                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" rows only")]))
+        return query, placeholders
 
 class Comment(QTextEdit):
 
@@ -428,7 +486,24 @@ class TreeWidget(QTreeWidget):
         self.clear()
         #t_ini=time.time()
         database=SQLDatabase()
-        hierarchy = database.get_all_hierarchy(N=new_size)
+        if first_use:
+            filters=[Filter("id","=","parent")]
+            query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{firsts}")\
+        .format(fields=sql.SQL(' AND ').join(filters),
+                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" rows only")])), [new_size]
+        elif self.window().add_filters.isChecked():
+            query, placeholders=self.window().filter_widget.get_query()
+            placeholders.append(new_size)
+        else:
+            filters=[Filter("id","=","parent")]
+            query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{firsts}")\
+        .format(fields=sql.SQL(' AND ').join(filters),
+                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" rows only")])), [new_size]
+        hierarchy = database.get_all_hierarchy(query=query, placeholders=placeholders)
         #print('get hierarchy took {:}s'.format(time.time()-t_ini))
         if len(hierarchy)>0:
             for curve_id, childs, name, date, sample in hierarchy[0]:
@@ -442,7 +517,7 @@ class TreeWidget(QTreeWidget):
                     self.setCurrentItem(item)
                 self.addTopLevelItem(item)
                 self.add_childs(item,hierarchy,childs,1)
-        #print('whole compute took {:}s'.format(time.time()-t_ini))
+        #print('whole compute took {:}s'.format(time.time()-t_ini))'''
         
     def add_childs(self, item, hierarchy, childs, level):
         if len(hierarchy)>level and len(childs)>0:
