@@ -1,7 +1,7 @@
 import os, json, time, shutil
 import numpy as np
 import h5py, sys
-import psycopg2
+from psycopg2 import sql, connect, InterfaceError
 from contextlib import contextmanager
 
 if not sys.platform=='linux':
@@ -23,6 +23,26 @@ def transaction(conn):
     else:
         if not conn.closed:
             conn.commit()
+
+class Filter(sql.Composed):
+    
+    columns=["parent", "id", "name", "date", "sample", "childs"]
+    
+    def __init__(self, item1, relation, item2):
+        self.item1=sql.Identifier(item1)
+        self.relation=sql.SQL("=")
+        if item2 not in Filter.columns:
+            self.placeholder=True
+            self.item2=item2
+            super().__init__([self.item1,
+                             self.relation,
+                             sql.Placeholder()])
+        else:
+           self.placeholder=False
+           self.item2=sql.Identifier(item2)
+           super().__init__([self.item1,
+                             self.relation,
+                             self.item2])
         
 class SQLDatabase():
     
@@ -42,9 +62,9 @@ class SQLDatabase():
             self.db=self.__class__.instances[0]
         else:
             self.__class__.first_instance=False
-            self.db=psycopg2.connect(host=SQLDatabase.DATABASE_HOST,
-                                     database=SQLDatabase.DATABASE_NAME,
-                                     user=SQLDatabase.USER)
+            self.db=connect(host=SQLDatabase.DATABASE_HOST,
+                             database=SQLDatabase.DATABASE_NAME,
+                             user=SQLDatabase.USER)
             if not self.is_table_created():
                 self.create_table()
             self.__class__.instances.append(self.db)
@@ -74,8 +94,12 @@ class SQLDatabase():
         self.cursor.execute('''SELECT nextval(%s);''', ('public.curve_id_seq',))
         return int(self.cursor.fetchone()[0])
     
-    def get_all_hierarchy(self, project=None, N=-1):
+    def get_all_hierarchy(self, query=None, placeholders=None):
         self.get_cursor()
+        if query is None:
+            self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=parent ORDER BY id DESC''')
+        else:
+            self.cursor.execute(query, placeholders)
         if project is None:
             if N!=-1:
                 self.cursor.execute('''SELECT id, childs, name, date, sample FROM data WHERE id=parent ORDER BY id DESC FETCH FIRST %s rows only''',(N,))
@@ -129,10 +153,10 @@ class SQLDatabase():
     def get_cursor(self):
         try:
             self.cursor=self.db.cursor()
-        except psycopg2.InterfaceError:
-            self.db=psycopg2.connect(host=SQLDatabase.DATABASE_HOST,
-                                     database=SQLDatabase.DATABASE_NAME,
-                                     user=SQLDatabase.USER)
+        except InterfaceError:
+            self.db=connect(host=SQLDatabase.DATABASE_HOST,
+                             database=SQLDatabase.DATABASE_NAME,
+                             user=SQLDatabase.USER)
             self.__class__.instances=[self.db]
             self.cursor=self.db.cursor()
     

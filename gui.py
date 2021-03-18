@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QApplication,
 QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem, 
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
-QPushButton, QComboBox, QInputDialog)
+QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton)
 from PyQt5.QtCore import QRect, QPoint
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -19,6 +19,7 @@ import pyqtgraph as pg
 import numpy as np
 import json
 import matplotlib.pylab as plt
+from psycopg2 import sql
 
 N_ROW_DEFAULT=20
 
@@ -37,16 +38,18 @@ class WindowWidget(QWidget):
         self.layout_top = QHBoxLayout()
         self.layout_bottom = QHBoxLayout()
         self.plot_widget = PlotWidget()
+        self.add_filters = QCheckBox('add_filters')
+        self.filter_widget = FilterWidget(self)
         
         self.layout_show_first = QHBoxLayout()
+        self.layout_global.addWidget(self.filter_widget)
         self.layout_global.addLayout(self.layout_left)
         self.layout_global.addLayout(self.layout_center)
         self.layout_global.addLayout(self.layout_right)
         self.layout_left.addLayout(self.layout_show_first)
         self.spinbox_widget = SpinBoxWidget()
-        self.show_specific_project = QCheckBox('Show specific project')
-        self.project = Project('', self)
-        self.tree_widget = TreeWidget(self.show_specific_project, self.project)
+        
+        self.tree_widget = TreeWidget()
         self.plot_options = plotOptions(self.tree_widget)
         self.param_widget = ParamWidget(self.layout)
         self.layout_right.addWidget(self.param_widget)
@@ -57,8 +60,8 @@ class WindowWidget(QWidget):
         self.layout_show_first.addWidget(self.show_first_label)
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
-        self.layout_show_first.addWidget(self.show_specific_project)
-        self.layout_show_first.addWidget(self.project)
+        self.layout_show_first.addWidget(self.add_filters)
+        #self.layout_show_first.addWidget(self.project)
         self.layout_show_first.addWidget(self.compute_button)
         self.layout_center.addLayout(self.layout_top)
         self.layout_top.addWidget(self.plot_options)
@@ -87,23 +90,35 @@ class WindowWidget(QWidget):
         self.setMaximumHeight(600)
         self.show()
         self.move(0,0)
-        
-    '''def moveEvent(self,event):
-        self.tree_widget.move()'''
-        
-    '''def mousePressEvent(self, event):
-        self.tree_widget.move()'''
-    
-    '''def resizeEvent(self, event):
-        self.tree_widget.move()'''
 
-class Project(QLineEdit):
+class NewFilterWidget(QGroupBox):
     
-    def __init__(self, text, window):
-        super().__init__(text, parent=window)
+    def __init__(self, filter_widget):
+        super.__init__(parent=filter_widget)
+        self.filter_widget=filter_widget
+        self.global_layout=QHBoxLayout()
+        self.setLayout(self.global_layout)
+        self.item1=QtCore.QStringList()
+        self.global_layout.addWidget(self.item1)
+        self.global_layout.addWidget(QPushButton('yolo'))
+        self.show()
+        print('youpi')
+
+class FilterWidget(QGroupBox):
+    
+    def __init__(self, window):
+        super().__init__(parent=window)
         self.parent=window
         self.hide()
-        self.parent.show_specific_project.stateChanged.connect(self.set_visible)
+        self.parent.add_filters.stateChanged.connect(self.set_visible)
+        self.global_layout=QVBoxLayout()
+        self.setLayout(self.global_layout)
+        self.add_button=QToolButton()
+        self.add_button.setIcon(QtGui.QIcon('plus.png'))
+        self.add_button.setStyleSheet("#SnapShotButton {border : none;}")
+        self.add_button.clicked.connect(self.add)
+        self.global_layout.addWidget(self.add_button)
+        self.filters=[]
         
     
     def set_visible(self, state):
@@ -116,10 +131,12 @@ class Project(QLineEdit):
             self.parent.tree_widget.compute()
         else:
             pass
-        
-    def text_changed_slot(self, text):
-        if not self.isHidden():
-            self.parent.tree_widget.compute()
+    
+    def add(self):
+        new_filter=NewFilterWidget(self)
+        self.global_layout.addWidget(new_filter)
+        self.filters.append(new_filter)
+        self.show()
 
 class Comment(QTextEdit):
 
@@ -374,10 +391,8 @@ class ParamWidget(QTableWidget):
 
 class TreeWidget(QTreeWidget):
     
-    def __init__(self, show_specific_project, project):
+    def __init__(self):
         super().__init__()
-        self.show_specific_project=show_specific_project
-        self.project=project
         self.active_ID=None
         self.setColumnCount(4)
         self.length = np.min([SQLDatabase().get_n_keys(), N_ROW_DEFAULT])
@@ -391,10 +406,6 @@ class TreeWidget(QTreeWidget):
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
-    
-    '''def move(self):
-        if self.contextMenu is not None:
-            self.contextMenu.move()'''
             
     def RightClickMenu(self, point):
         item=self.itemAt(point)
@@ -414,14 +425,10 @@ class TreeWidget(QTreeWidget):
             new_size=N_ROW_DEFAULT
         else:
             new_size = self.window().spinbox_widget.current_value
-        if self.show_specific_project.isChecked():
-            project=self.project.text()
-        else:
-            project=None
         self.clear()
         #t_ini=time.time()
         database=SQLDatabase()
-        hierarchy = database.get_all_hierarchy(project=project, N=new_size)
+        hierarchy = database.get_all_hierarchy(N=new_size)
         #print('get hierarchy took {:}s'.format(time.time()-t_ini))
         if len(hierarchy)>0:
             for curve_id, childs, name, date, sample in hierarchy[0]:
