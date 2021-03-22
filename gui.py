@@ -22,6 +22,7 @@ import json
 import matplotlib.pylab as plt
 from psycopg2 import sql
 from datetime import datetime as datetime
+import h5py
 
 N_ROW_DEFAULT=20
 
@@ -63,7 +64,6 @@ class WindowWidget(QWidget):
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
         self.layout_show_first.addWidget(self.add_filters)
-        #self.layout_show_first.addWidget(self.project)
         self.layout_show_first.addWidget(self.compute_button)
         self.layout_center.addLayout(self.layout_top)
         self.layout_top.addWidget(self.plot_options)
@@ -78,14 +78,9 @@ class WindowWidget(QWidget):
         self.layout_bottom.addWidget(self.plot_figure_button)
         self.save_button = SaveButton(self.tree_widget, self.comment)
         self.layout_bottom.addWidget(self.save_button)
-        self.spinbox_changed.connect(self.tree_widget.compute)
         self.compute_button.clicked.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
-        self.row_changed.connect(self.param_widget.actualize)
-        self.row_changed.connect(self.directory_button.update)
-        self.row_changed.connect(self.comment.update)
         self.changing_tree=False
-        #self.database_changed.fileChanged.connect(self.database_changed_slot)
         self.spinbox_widget.setValue(20)
         self.setLayout(self.layout_global)
         self.setGeometry(QRect(0, 0, 1000, 600))
@@ -193,7 +188,7 @@ class FilterWidget(QGroupBox):
         self.global_layout.addWidget(self.add_button)
         self.filters=[]
         
-    
+
     def set_visible(self, state):
         if isinstance(state, bool):
             pass
@@ -201,7 +196,6 @@ class FilterWidget(QGroupBox):
             self.show()
         elif state==QtCore.Qt.Unchecked:
             self.hide()
-            self.parent.tree_widget.compute()
         else:
             pass
     
@@ -241,12 +235,8 @@ class Comment(QTextEdit):
         self.treewidget=treewidget
         self.setFixedHeight(30)
     
-    def update(self):
-        active_item=self.treewidget.active_item
-        if active_item is not None:
-            self.current_id=active_item.data(0,0)
-            curve=Curve(self.current_id)
-            self.setPlainText(curve.comment)
+    def update(self, comment):
+        self.setPlainText(comment)
         
 class plotOptions(QComboBox):
     
@@ -268,16 +258,11 @@ class DirectoryButton(QPushButton):
         self.current_id=None
         self.clicked.connect(self.action)
 
-    def update(self):
-        if self.window().tree_widget.active_item is not None:
-            self.current_id=self.window().tree_widget.active_item.data(0,0)
-            db=SQLDatabase()
-            cid, name, date=db.get_name_and_time(self.current_id)
-            if not os.path.exists(os.path.join(db.get_folder_from_date(date),
-                                               str(self.current_id))):
-                self.setText('Create directory')
-            else:
-                self.setText('Go to directory')
+    def update(self, exists):
+        if exists:
+            self.setText('Go to directory')
+        else:
+            self.setText('Create directory')
     
     def startfile(self,filename):
         try:
@@ -286,14 +271,18 @@ class DirectoryButton(QPushButton):
             subprocess.Popen(['xdg-open', filename])
     
     def action(self):
-        db=SQLDatabase()
-        cid, name, date=db.get_name_and_time(self.current_id)
-        self.setText('Go to directory')
-        directory=db.get_folder_from_date(date)
-        if not str(self.current_id) in os.listdir(directory):
-            os.mkdir(os.path.join(directory,str(self.current_id)))
+        self.current_id=self.window().tree_widget.active_item.data(0,0)
+        date=self.window().tree_widget.active_item.data(2,0)
+        if self.text()=='Create directory':
+            folder=PlotWidget.get_folder_from_date(date)
+            if not str(self.current_id) in os.listdir(folder):
+                os.mkdir(os.path.join(folder,str(self.current_id)))
+            self.setText('Go to directory')
         else:
-            self.startfile(os.path.join(directory,str(self.current_id)))
+            assert self.text()=='Go to directory'
+            folder=PlotWidget.get_folder_from_date(date)
+            assert str(self.current_id) in os.listdir(folder)
+            self.startfile(os.path.join(folder,str(self.current_id)))
 
 class PlotFigureButton(QPushButton):
     
@@ -417,15 +406,13 @@ class ParamWidget(QTableWidget):
     def RightClickMenu(self, point):
         self.contextMenu=QParamsContextMenu(point, self.window())
     
-    def actualize(self):
+    def actualize(self, params):
         item = self.window().tree_widget.active_item
         if item is not None:
-            curve_id = int(item.data(0,0))
-            curve = SQLDatabase().get_curve(curve_id)
             self.clear()
             self.setHorizontalHeaderLabels(['Param', 'Value'])
-            self.setRowCount(len(curve.params.keys()))
-            for i,(k, v) in enumerate(curve.params.items()):
+            self.setRowCount(len(params.keys()))
+            for i,(k, v) in enumerate(params.items()):
                 key = QTableWidgetItem()
                 key.setText(k)
                 self.setItem(i,0,key)
@@ -479,9 +466,22 @@ class ParamWidget(QTableWidget):
     def get_new_param(self):
         name, param = self.name_box.text(), self.param_box.text()
         current_id=self.window().tree_widget.active_item.data(0,0)
-        curve=SQLDatabase().get_curve(current_id)
-        curve.params[name]=param
-        curve.save()
+        date=self.window().tree_widget.active_item.data(2,0)
+        params=PlotWidget.get_params_from_date_and_id(date, current_id)
+        params[name]=param
+        folder=PlotWidget.get_folder_from_date(date)
+        if not '{:}.h5'.format(current_id) in os.listdir(folder):
+                print('the h5 file is nowhere to be found')
+        else:
+            with h5py.File(os.path.join(folder, '{:}.h5'.format(current_id)), 'r+') as f:
+                data=f['data']
+                for key, val in params.items():
+                    if val is None:
+                        data.attrs[key]='NONE'
+                    elif isinstance(val, dict):
+                        data.attrs[key]=json.dumps(val)
+                    else:
+                        data.attrs[key]=val
         self.new_param_window.close()
         
 
@@ -522,7 +522,6 @@ class TreeWidget(QTreeWidget):
         else:
             new_size = self.window().spinbox_widget.current_value
         self.clear()
-        #t_ini=time.time()
         database=SQLDatabase()
         if first_use:
             filters=[Filter("id","=","parent")]
@@ -542,7 +541,6 @@ class TreeWidget(QTreeWidget):
                                      sql.Placeholder(),
                                      sql.SQL(" rows only")])), [new_size]
         hierarchy = database.get_all_hierarchy(query=query, placeholders=placeholders)
-        #print('get hierarchy took {:}s'.format(time.time()-t_ini))
         if len(hierarchy)>0:
             for curve_id, childs, name, date, sample in hierarchy[0]:
                 childs=json.loads(childs)
@@ -555,7 +553,6 @@ class TreeWidget(QTreeWidget):
                     self.setCurrentItem(item)
                 self.addTopLevelItem(item)
                 self.add_childs(item,hierarchy,childs,1)
-        #print('whole compute took {:}s'.format(time.time()-t_ini))'''
         
     def add_childs(self, item, hierarchy, childs, level):
         if len(hierarchy)>level and len(childs)>0:
@@ -601,10 +598,10 @@ class PlotWidget(pg.PlotWidget):
         if item is not None:
             self.getPlotItem().enableAutoRange(enable=True)
             curve_id = int(item.data(0,0))
-            curve = SQLDatabase().get_curve(curve_id)
-            x, y_r, y_i, y_abs=(np.real(curve.x), np.real(curve.y),
-                                np.imag(curve.y), np.abs(curve.y))
-            
+            date = item.data(2,0)
+            folder=PlotWidget.get_folder_from_date(date)
+            x,y,params=PlotWidget.get_data_and_params_from_date_and_id(date, curve_id)
+            y_r, y_i, y_abs=(np.real(y), np.imag(y), np.abs(y))
             self.getPlotItem().clear()
             
             state=self.window().plot_options.currentText()
@@ -621,17 +618,67 @@ class PlotWidget(pg.PlotWidget):
             elif state=='Abs':
                 self.getPlotItem().plot(x, y_abs)
             self.getPlotItem().enableAutoRange(enable=False)
-            
+            if 'comment' in params.keys():
+                comment=params.pop('comment')
+            else:
+                comment=''
+            self.window().param_widget.actualize(params)
+            exists=os.path.exists(os.path.join(folder, '{:}'.format(curve_id)))
+            self.window().directory_button.update(exists)
+            self.window().comment.update(comment)
+    
+    @staticmethod
+    def get_folder_from_date(date):
+        t=time.mktime(time.strptime(date,"%Y/%m/%d %H:%M:%S"))
+        path = os.path.join(SQLDatabase.DATA_LOCATION,
+                            time.strftime("%Y",time.gmtime(t)),
+                            time.strftime("%m",time.gmtime(t)),
+                            time.strftime("%d",time.gmtime(t)))
+        if not os.path.exists(path):
+            print("the folder is nowhere to be found...")
+        return path
+    
+    @staticmethod
+    def get_data_and_params_from_date_and_id(date, curve_id):
+        folder=PlotWidget.get_folder_from_date(date)
+        if not '{:}.h5'.format(curve_id) in os.listdir(folder):
+                print('the h5 file is nowhere to be found')
+        else:
+            with h5py.File(os.path.join(folder, '{:}.h5'.format(curve_id)), 'r') as f:
+                    data=f['data']
+                    x=np.real(data[0])
+                    y=data[1]
+                    params=dict()
+                    params=PlotWidget.extract_dictionary(params, data.attrs)
+            return x,y,params
+    
+    @staticmethod
+    def get_params_from_date_and_id(date, curve_id):
+        folder=PlotWidget.get_folder_from_date(date)
+        if not '{:}.h5'.format(curve_id) in os.listdir(folder):
+                print('the h5 file is nowhere to be found')
+        else:
+            with h5py.File(os.path.join(folder, '{:}.h5'.format(curve_id)), 'r') as f:
+                    data=f['data']
+                    params=dict()
+                    params=PlotWidget.extract_dictionary(params, data.attrs)
+            return params
+    
+    @staticmethod
+    def extract_dictionary(res, obj):
+        for key, val in obj.items():
+            if val=='NONE':
+                res[key]=None
+            elif isinstance(val, str) and val.startswith('{'):
+                res[key]=json.loads(val)
+            else:
+                res[key]=val
+        return res
         
-        
-#data = DataBase().get_data()
 app = QtCore.QCoreApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
 window = WindowWidget()
-#curve_1=Curve([0,1,2,3])
-#curve_2=Curve([0,1,2,3],[10,2,3,5], bonjour=[1,2,3])
 app.exec_()
-#sys.exit(app.exec_())
 
 
