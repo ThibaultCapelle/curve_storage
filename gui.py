@@ -131,6 +131,7 @@ class NewFilterWidget(QGroupBox):
         elif text in ['name', 'project', 'sample']:
             self.calendar.hide()
             self.item2.clear()
+            self.item3.show()
             for operation in ['=']:
                 self.item2.addItem(operation)
         else:
