@@ -42,6 +42,8 @@ class WindowWidget(QWidget):
         self.layout_bottom = QHBoxLayout()
         self.plot_widget = PlotWidget()
         self.add_filters = QCheckBox('add_filters')
+        self.show_filters = QCheckBox('Show filters')
+        self.show_filters.hide()
         self.filter_widget = FilterWidget(self)
         
         self.layout_show_first = QHBoxLayout()
@@ -64,6 +66,7 @@ class WindowWidget(QWidget):
         self.layout_show_first.addWidget(self.spinbox_widget)
         self.layout_left.addWidget(self.tree_widget)
         self.layout_show_first.addWidget(self.add_filters)
+        self.layout_show_first.addWidget(self.show_filters)
         self.layout_show_first.addWidget(self.compute_button)
         self.layout_center.addLayout(self.layout_top)
         self.layout_top.addWidget(self.plot_options)
@@ -180,6 +183,7 @@ class FilterWidget(QGroupBox):
         self.parent=window
         self.hide()
         self.parent.add_filters.stateChanged.connect(self.set_visible)
+        self.parent.show_filters.stateChanged.connect(self.show_widget)
         self.global_layout=QVBoxLayout()
         self.setLayout(self.global_layout)
         self.add_button=QToolButton()
@@ -187,14 +191,26 @@ class FilterWidget(QGroupBox):
         self.add_button.clicked.connect(self.add)
         self.global_layout.addWidget(self.add_button)
         self.filters=[]
-        
-
-    def set_visible(self, state):
+    
+    def show_widget(self, state):
         if isinstance(state, bool):
             pass
         elif state==QtCore.Qt.Checked:
             self.show()
         elif state==QtCore.Qt.Unchecked:
+            self.hide()
+        else:
+            pass
+
+    def set_visible(self, state):
+        if isinstance(state, bool):
+            pass
+        elif state==QtCore.Qt.Checked:
+            self.parent.show_filters.show()
+            self.parent.show_filters.setCheckState(QtCore.Qt.Checked)
+            self.show()
+        elif state==QtCore.Qt.Unchecked:
+            self.parent.show_filters.hide()
             self.hide()
         else:
             pass
