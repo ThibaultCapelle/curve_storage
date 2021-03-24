@@ -23,6 +23,7 @@ import matplotlib.pylab as plt
 from psycopg2 import sql
 from datetime import datetime as datetime
 import h5py
+import inspect
 
 N_ROW_DEFAULT=20
 
@@ -113,7 +114,8 @@ class NewFilterWidget(QGroupBox):
         self.global_layout.addWidget(self.calendar)
         self.calendar.hide()
         self.remove_button=QToolButton()
-        self.remove_button.setIcon(QtGui.QIcon('minus.png'))
+        folder=os.path.split(inspect.getfile(Curve))[0]
+        self.remove_button.setIcon(QtGui.QIcon(os.path.join(folder,'minus.png')))
         self.global_layout.addWidget(self.remove_button)
         self.remove_button.clicked.connect(self.remove)
         self.activate_box = QCheckBox('activate')
@@ -189,7 +191,8 @@ class FilterWidget(QGroupBox):
         self.global_layout=QVBoxLayout()
         self.setLayout(self.global_layout)
         self.add_button=QToolButton()
-        self.add_button.setIcon(QtGui.QIcon('plus.png'))
+        folder=os.path.split(inspect.getfile(Curve))[0]
+        self.add_button.setIcon(QtGui.QIcon(os.path.join(folder,'plus.png')))
         self.add_button.clicked.connect(self.add)
         self.global_layout.addWidget(self.add_button)
         self.filters=[]
