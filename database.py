@@ -3,7 +3,11 @@ import numpy as np
 import h5py, sys
 from psycopg2 import sql, connect, InterfaceError
 from contextlib import contextmanager
+from PyQt5.QWidgets import QFileDialog
 
+DATABASE_NAME='postgres'
+USER='postgres'
+DATABASE_HOST=r'quarpi.qopt.nbi.dk'
 if not sys.platform=='linux':
     ROOT=os.environ['USERPROFILE']
 else:
@@ -49,7 +53,14 @@ class SQLDatabase():
     first_instance = True
     instances = []
     CONFIG_LOCATION = ROOT
-    assert 'database_config.json' in os.listdir(CONFIG_LOCATION)
+    if not 'database_config.json' in os.listdir(CONFIG_LOCATION):
+        DATA_LOCATION=QFileDialog.getExistingDirectory(caption='select the root directory of the data')
+        with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'w') as f:
+            res=dict({'DATA_LOCATION':DATA_LOCATION,
+                      'DATABASE_HOST':DATABASE_HOST,
+                      'DATABASE_NAME':DATABASE_NAME,
+                      'USER':USER})
+            json.dump(res, f)
     with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'r') as f:
         res=json.load(f)
         DATA_LOCATION=res['DATA_LOCATION']
@@ -265,7 +276,7 @@ class SQLDatabase():
                 return [self.get_curve(curve_ids[0])]
             else:
                 self.get_cursor()
-                self.cursor.execute('''SELECT id, name, date, childs, parent, project, sample FROM data WHERE id=ANY(%s);''',(curve_ids,))
+                self.cursor.execute('''SELECT id, name, date, childs, parent, project, sample FROM data WHERE id=ANY(%s) ORDER BY id ASC;''',(curve_ids,))
                 res=[]
                 for data in self.cursor.fetchall():
                     curve_id = int(data[0])
@@ -299,6 +310,7 @@ class SQLDatabase():
             else:
                 curve_ids, name=args
                 assert isinstance(curve_ids, list)
+                curve_ids=[int(cid) for cid in curve_ids]
                 assert isinstance(name, str)
                 self.get_cursor()
                 self.cursor.execute('''SELECT id, date, childs, parent, project, sample FROM data WHERE id=ANY(%s) AND name=%s;''',
