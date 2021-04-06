@@ -3,7 +3,7 @@ import numpy as np
 import h5py, sys
 from psycopg2 import sql, connect, InterfaceError
 from contextlib import contextmanager
-from PyQt5.QWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog
 
 DATABASE_NAME='postgres'
 USER='postgres'
