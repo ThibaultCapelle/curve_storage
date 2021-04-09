@@ -15,7 +15,10 @@
    version="1.1"
    id="svg8"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="minus.svg">
+   sodipodi:docname="minus.svg"
+   inkscape:export-filename="C:\Users\Thibault\Documents\GitHub\curve_storage\minus.png"
+   inkscape:export-xdpi="100"
+   inkscape:export-ydpi="100">
   <defs
      id="defs2" />
   <sodipodi:namedview
@@ -33,9 +36,9 @@
      showgrid="false"
      inkscape:window-width="1366"
      inkscape:window-height="705"
-     inkscape:window-x="-8"
-     inkscape:window-y="-8"
-     inkscape:window-maximized="1" />
+     inkscape:window-x="-32000"
+     inkscape:window-y="-32000"
+     inkscape:window-maximized="0" />
   <metadata
      id="metadata5">
     <rdf:RDF>
@@ -71,6 +74,8 @@
        x="55.837513"
        y="112.84025"
        rx="4.6062636"
-       ry="4.6062636" />
+       ry="4.6062636"
+       inkscape:export-xdpi="100"
+       inkscape:export-ydpi="100" />
   </g>
 </svg>
