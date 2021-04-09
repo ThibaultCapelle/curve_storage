@@ -134,7 +134,7 @@ class NewFilterWidget(QGroupBox):
             self.calendar.hide()
             self.item2.clear()
             self.item3.show()
-            for operation in ['=']:
+            for operation in ['=', 'contains']:
                 self.item2.addItem(operation)
         else:
             self.calendar.hide()

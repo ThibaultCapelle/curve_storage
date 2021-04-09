@@ -33,20 +33,33 @@ class Filter(sql.Composed):
     columns=["parent", "id", "name", "date", "sample", "project"]
     
     def __init__(self, item1, relation, item2):
-        self.item1=sql.Identifier(item1)
-        self.relation=sql.SQL(relation)
-        if item2 not in Filter.columns:
-            self.placeholder=True
-            self.item2=item2
-            super().__init__([self.item1,
-                             self.relation,
-                             sql.Placeholder()])
+        if relation!='contains':
+            self.item1=sql.Identifier(item1)
+            self.relation=sql.SQL(relation)
+            if item2 not in Filter.columns:
+                self.placeholder=True
+                self.item2=item2
+                super().__init__([self.item1,
+                                 self.relation,
+                                 sql.Placeholder()])
+            else:
+               self.placeholder=False
+               self.item2=sql.Identifier(item2)
+               super().__init__([self.item1,
+                                 self.relation,
+                                 self.item2])
         else:
-           self.placeholder=False
-           self.item2=sql.Identifier(item2)
-           super().__init__([self.item1,
-                             self.relation,
-                             self.item2])
+            self.placeholder=True
+            self.init=sql.SQL("position(")
+            self.item1=sql.Identifier(item1)
+            self.item2=item2
+            junction=sql.SQL("in ")
+            end=sql.SQL(") > 0")
+            super().__init__([self.init,
+                              sql.Placeholder(),
+                              junction, 
+                              self.item1,
+                              end])
         
 class SQLDatabase():
     
