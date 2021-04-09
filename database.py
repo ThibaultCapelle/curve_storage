@@ -3,7 +3,8 @@ import numpy as np
 import h5py, sys
 from psycopg2 import sql, connect, InterfaceError
 from contextlib import contextmanager
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog, QApplication
+import PyQt5.QtCore as QtCore
 
 DATABASE_NAME='postgres'
 USER='postgres'
@@ -67,7 +68,11 @@ class SQLDatabase():
     instances = []
     CONFIG_LOCATION = ROOT
     if not 'database_config.json' in os.listdir(CONFIG_LOCATION):
+        app = QtCore.QCoreApplication.instance()
+        if app is None:
+            app = QApplication(sys.argv)
         DATA_LOCATION=QFileDialog.getExistingDirectory(caption='select the root directory of the data')
+        app.exec_()
         with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'w') as f:
             res=dict({'DATA_LOCATION':DATA_LOCATION,
                       'DATABASE_HOST':DATABASE_HOST,
