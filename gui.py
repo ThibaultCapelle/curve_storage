@@ -264,7 +264,7 @@ class plotOptions(QComboBox):
     def __init__(self, treewidget):
         super().__init__()
         self.treewidget=treewidget
-        self.addItems(['Real', 'Imaginary', 'dB', 'Smith', 'Abs'])
+        self.addItems(['Real', 'Imaginary', 'dB', 'Smith', 'Abs', 'Angle'])
         self.currentTextChanged.connect(self.update)
     
     def update(self, new_text):
@@ -622,7 +622,7 @@ class PlotWidget(pg.PlotWidget):
             date = item.data(2,0)
             folder=PlotWidget.get_folder_from_date(date)
             x,y,params=PlotWidget.get_data_and_params_from_date_and_id(date, curve_id)
-            y_r, y_i, y_abs=(np.real(y), np.imag(y), np.abs(y))
+            y_r, y_i, y_abs, y_angle=(np.real(y), np.imag(y), np.abs(y), np.angle(y))
             self.getPlotItem().clear()
             
             state=self.window().plot_options.currentText()
@@ -638,6 +638,8 @@ class PlotWidget(pg.PlotWidget):
                 self.getPlotItem().plot(y_r, y_i)
             elif state=='Abs':
                 self.getPlotItem().plot(x, y_abs)
+            elif state=='Angle':
+                self.getPlotItem().plot(x, y_angle)
             self.getPlotItem().enableAutoRange(enable=False)
             if 'comment' in params.keys():
                 comment=params.pop('comment')
