@@ -61,7 +61,7 @@ class Filter(sql.Composed):
                               junction, 
                               self.item1,
                               end])
-        
+
 class SQLDatabase():
     
     first_instance = True
@@ -530,7 +530,7 @@ class SQLDatabase():
         self.db.close()
         self.__class__.first_instance=True
         self.__class__.instances=[]
- 
+
 class Curve:
 
     def __init__(self, *args, **kwargs):

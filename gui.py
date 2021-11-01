@@ -178,7 +178,7 @@ class NewFilterWidget(QGroupBox):
                         Filter(self.item1.currentText(),
                               '<',
                               str(t2))]
-        
+
 
 class FilterWidget(QGroupBox):
     
@@ -258,7 +258,7 @@ class Comment(QTextEdit):
     
     def update(self, comment):
         self.setPlainText(comment)
-        
+
 class plotOptions(QComboBox):
     
     def __init__(self, treewidget):
@@ -347,7 +347,7 @@ class SaveButton(QPushButton):
             curve=Curve(current_id)
             curve.comment=self.comment.toPlainText()
             curve.save()
-                   
+
 class QTreeContextMenu(QMenu):
     
     def __init__(self, item):
@@ -406,7 +406,7 @@ class QParamsContextMenu(QMenu):
         self.setGeometry(self.window_position.
                          translated(point)
                          .translated(self.window.param_widget.geometry().topLeft()))
-       
+
 class ParamWidget(QTableWidget):
     
     def __init__(self, layout):
@@ -504,7 +504,7 @@ class ParamWidget(QTableWidget):
                     else:
                         data.attrs[key]=val
         self.new_param_window.close()
-        
+
 
 class TreeWidget(QTreeWidget):
     
@@ -517,7 +517,7 @@ class TreeWidget(QTreeWidget):
         for i in range(3):
             self.setColumnWidth(i,50)
         self.setColumnWidth(3,10)
-        self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.currentItemChanged.connect(self.current_item_changed)
         self.compute(first_use=True)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -593,7 +593,7 @@ class TreeWidget(QTreeWidget):
                         item.addChild(child_item)
                         self.add_childs(child_item, hierarchy, gchilds, level+1)
                         break
-        
+
 
 class SpinBoxWidget(QSpinBox):
     
@@ -697,7 +697,7 @@ class PlotWidget(pg.PlotWidget):
             else:
                 res[key]=val
         return res
-        
+
 app = QtCore.QCoreApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
