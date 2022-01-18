@@ -10,7 +10,10 @@ DATABASE_NAME='postgres'
 USER='postgres'
 DATABASE_HOST=r'quarpi.qopt.nbi.dk'
 if not sys.platform=='linux':
-    ROOT=os.environ['USERPROFILE']
+    if 'USERPROFILE' in os.environ.keys():
+        ROOT=os.environ['USERPROFILE']
+    else:
+        ROOT=os.path.join(os.environ['HOMEDRIVE'], os.environ['HOMEPATH'])
 else:
     ROOT=os.environ['HOME']
 
@@ -107,6 +110,19 @@ class SQLDatabase():
             return np.array(self.cursor.fetchall()).flatten().tolist()
         else:
             return []
+    
+    def change_data_location(self):
+        app = QtCore.QCoreApplication.instance()
+        if app is None:
+            app = QApplication(sys.argv)
+        DATA_LOCATION=QFileDialog.getExistingDirectory(caption='select the root directory of the data')
+        app.exec_()
+        with open(os.path.join(self.CONFIG_LOCATION, 'database_config.json'), 'w') as f:
+            res=dict({'DATA_LOCATION':DATA_LOCATION,
+                      'DATABASE_HOST':DATABASE_HOST,
+                      'DATABASE_NAME':DATABASE_NAME,
+                      'USER':USER})
+            json.dump(res, f)
     
     def get_one_id(self):
         self.get_cursor()
