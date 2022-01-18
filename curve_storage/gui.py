@@ -16,6 +16,7 @@ import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import sys, time, os, subprocess
 from curve_storage.database import Curve, SQLDatabase, transaction, Filter
+from curve_storage.fit import Fit
 import pyqtgraph as pg
 import numpy as np
 import json
@@ -79,7 +80,15 @@ class WindowWidget(QWidget):
         self.layout_bottom.addWidget(self.directory_button)
         self.plot_figure_button = PlotFigureButton(self.tree_widget,
                                                    self.plot_widget)
+        self.fit_functions=FitFunctions(self.tree_widget)
+        self.fit_button = FitButton(self.tree_widget,
+                                    self.plot_widget)
+        self.save_fit_button = SaveFitButton(self.tree_widget,
+                                    self.plot_widget)
         self.layout_bottom.addWidget(self.plot_figure_button)
+        self.layout_bottom.addWidget(self.fit_functions)
+        self.layout_bottom.addWidget(self.fit_button)
+        self.layout_bottom.addWidget(self.save_fit_button)
         self.save_button = SaveButton(self.tree_widget, self.comment)
         self.layout_bottom.addWidget(self.save_button)
         self.compute_button.clicked.connect(self.tree_widget.compute)
@@ -270,6 +279,20 @@ class plotOptions(QComboBox):
     def update(self, new_text):
         self.window().plot_widget.plot()
 
+class FitFunctions(QComboBox):
+    
+    def __init__(self, treewidget):
+        super().__init__()
+        self.treewidget=treewidget
+        self.list=[k for k in Fit.__dict__.keys() if (not k.startswith('__') 
+                    and not '_guess' in k)]
+        self.addItems(self.list)
+        self.treewidget.fit_function=self.list[0]
+        self.currentTextChanged.connect(self.update)
+    
+    def update(self, new_text):
+        self.treewidget.fit_function=new_text
+
 
 class DirectoryButton(QPushButton):
 
@@ -331,6 +354,91 @@ class PlotFigureButton(QPushButton):
             plt.xlim([xmin, xmax])
             plt.ylim([ymin, ymax])
             plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
+
+class FitButton(QPushButton):
+    
+    def __init__(self, treewidget, plotwidget):
+        super().__init__()
+        self.treewidget=treewidget
+        self.plotwidget=plotwidget
+        self.setText('Fit')
+        self.clicked.connect(self.action)
+    
+    def action(self):
+        items=self.plotwidget.getPlotItem()
+        current_id=self.treewidget.active_item.data(0,0)
+        curve=Curve(current_id)
+        print(items)
+        for i, item in enumerate(items.items):
+            rect=item.viewRect()
+            l, r= (rect.left(), rect.right())
+            xmin, xmax=np.min([l,r]), np.max([l,r])
+            cond=np.logical_and(np.real(curve.x)<xmax,
+                                np.real(curve.x)>xmin)
+        y=curve.y[cond]
+        x=np.real(curve.x[cond])
+        self.fit_function=self.treewidget.fit_function
+        self.fitparams=Fit.fit(x,y, 
+                               function=self.fit_function)
+        if hasattr(getattr(Fit, self.fit_function), 'keys'):
+            self.keys=getattr(getattr(Fit, self.fit_function), 'keys')
+        self.x_fit=np.linspace(np.min(x), np.max(x), 1000)
+        self.y_fit=getattr(Fit, self.fit_function)(self.x_fit,
+                     self.fitparams)
+        fit_curve=self.plotwidget.fit_curve
+        if fit_curve is not None:
+            fit_curve.clear()
+            
+            
+        state=self.plotwidget.window().plot_options.currentText()
+        
+        if state=='dB':
+            x_fit=self.x_fit[np.abs(self.y_fit)!=0]
+            y_fit=self.y_fit[np.abs(self.y_fit)!=0]
+            self.plotwidget.fit_curve=self.getPlotItem().plot(x_fit,
+                                                      20*np.log10(y_fit),
+                                                      pen=pg.mkPen('b'))
+        elif state=='Real':
+            self.plotwidget.fit_curve=self.plotwidget.\
+                getPlotItem().plot(self.x_fit, np.real(self.y_fit),
+                            pen=pg.mkPen('b'))
+        elif state=='Imaginary':
+            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                    .plot(self.x_fit, np.imag(self.y_fit),
+                          pen=pg.mkPen('b'))
+        elif state=='Smith':
+            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                .plot(np.real(self.y_fit), np.imag(self.y_fit),
+                      pen=pg.mkPen('b'))
+        elif state=='Abs':
+            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                .plot(self.x_fit, np.abs(self.y_fit),
+                      pen=pg.mkPen('b'))
+        elif state=='Angle':
+            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                .plot(self.x_fit, np.angle(self.y_fit),
+                      pen=pg.mkPen('b'))
+
+class SaveFitButton(QPushButton):
+    
+    def __init__(self, treewidget, plotwidget):
+        super().__init__()
+        self.treewidget=treewidget
+        self.plotwidget=plotwidget
+        self.setText('Save Fit')
+        self.clicked.connect(self.action)
+    
+    def action(self):
+        current_id=self.treewidget.active_item.data(0,0)
+        curve=Curve(current_id)
+        fitbutton=self.window().fit_button
+        x,y=fitbutton.x_fit, fitbutton.y_fit
+        fitparams=fitbutton.fitparams
+        fitfunction=fitbutton.fit_function
+        keys=fitbutton.keys
+        params=dict({k: v for k,v in zip(keys, fitparams)})
+        fitcurve=Curve(x,y, name=fitfunction, **params)
+        fitcurve.move(curve)
 
 class SaveButton(QPushButton):
 
@@ -510,6 +618,7 @@ class TreeWidget(QTreeWidget):
     
     def __init__(self):
         super().__init__()
+        self.fit_function=None
         self.active_ID=None
         self.setColumnCount(4)
         self.length = np.min([SQLDatabase().get_n_keys(), N_ROW_DEFAULT])
@@ -613,7 +722,8 @@ class PlotWidget(pg.PlotWidget):
     
     def __init__(self):
         super().__init__()
-        
+        self.fit_curve=None
+            
     def plot(self):
         item = self.window().tree_widget.active_item
         if item is not None:
