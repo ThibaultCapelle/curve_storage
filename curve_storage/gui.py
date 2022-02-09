@@ -11,7 +11,7 @@ QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem,
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
 QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
 QCalendarWidget )
-from PyQt5.QtCore import QRect, QPoint
+from PyQt5.QtCore import QRect, QPoint, QSize
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import sys, time, os, subprocess
@@ -101,6 +101,85 @@ class WindowWidget(QWidget):
         self.show()
         self.move(0,0)
 
+class LegendWidget(QWidget):
+    
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.widget=QWidget()
+        self.layout = QVBoxLayout()
+        self.widget.setLayout(self.layout)
+        #self.setMinimumSize(QSize(100,300))
+        
+        self.setLayout(self.layout)
+        self.chans=[]
+    
+    def add_curve(self, item, color):
+        curve_id = int(item.data(0,0))
+        text=QLabel('id: {:}'.format(curve_id))
+        text.setAutoFillBackground(True) # This is important!!
+        color  = QtGui.QColor(color)#QColor(233, 10, 150)
+        alpha  = 255
+        values = "{r}, {g}, {b}, {a}".format(r = color.red(),
+                                             g = color.green(),
+                                             b = color.blue(),
+                                             a = alpha
+                                             )
+        text.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
+        self.layout.addWidget(text)
+        
+class PlotWindow(QWidget):
+    
+    COLORS = ['#1f77b4',
+              '#ff7f0e',
+              '#2ca02c',
+              '#d62728',
+              '#9467bd',
+              '#8c564b',
+              '#e377c2',
+              '#7f7f7f',
+              '#bcbd22',
+              '#17becf']
+    
+    def __init__(self, plot_options):
+        super().__init__()
+        self.plot_options=plot_options
+        self.layout_global = QHBoxLayout()
+        self.plot_widget=pg.PlotWidget()
+        self.legend=LegendWidget(self)
+        self.layout_global.addWidget(self.plot_widget)
+        self.layout_global.addWidget(self.legend)
+        self.setLayout(self.layout_global)
+        self.show()
+        self.color_index=-1
+    
+    def add_curve(self, item):
+        self.color_index+=1
+        color=self.COLORS[self.color_index%len(self.COLORS)]
+        pen=pg.mkPen(color)
+        self.plot_widget.getPlotItem().enableAutoRange(enable=True)
+        curve_id = int(item.data(0,0))
+        self.legend.add_curve(item, color)
+        date = item.data(2,0)
+        x,y,params=PlotWidget.get_data_and_params_from_date_and_id(date, curve_id)
+        y_r, y_i, y_abs, y_angle=(np.real(y), np.imag(y), np.abs(y), np.angle(y))
+        
+        state=self.plot_options.currentText()
+        if state=='dB':
+            x=x[y_abs!=0]
+            y_abs=y_abs[y_abs!=0]
+            self.plot_widget.getPlotItem().plot(x, 20*np.log10(y_abs), pen=pen)
+        elif state=='Real':
+            self.plot_widget.getPlotItem().plot(x, y_r, pen=pen)
+        elif state=='Imaginary':
+            self.plot_widget.getPlotItem().plot(x, y_i, pen=pen)
+        elif state=='Smith':
+            self.plot_widget.getPlotItem().plot(y_r, y_i, pen=pen)
+        elif state=='Abs':
+            self.plot_widget.getPlotItem().plot(x, y_abs, pen=pen)
+        elif state=='Angle':
+            self.plot_widget.getPlotItem().plot(x, y_angle, pen=pen)
+        self.plot_widget.getPlotItem().enableAutoRange(enable=False)
+        
 class NewFilterWidget(QGroupBox):
     
     def __init__(self, parent, filter_widget):
@@ -475,6 +554,8 @@ class QTreeContextMenu(QMenu):
         self.delete_action.triggered.connect(self.delete)
         self.move_action=self.addAction("move")
         self.move_action.triggered.connect(self.move_curve)
+        self.plot_action=self.addAction('plot')
+        self.plot_action.triggered.connect(self.plot)
         self.height=self.geometry().height()
         self.setVisible(True)
         self.show()
@@ -499,7 +580,14 @@ class QTreeContextMenu(QMenu):
             db=SQLDatabase()
             db.delete_entry(curve_id)
         self.tree_widget.compute()
-
+    
+    def plot(self):
+        self.subplot_window=PlotWindow(self.tree_widget.window().plot_options)
+        self.selected_items=self.tree_widget.selectedItems()
+        selection=self.selected_items
+        for item in selection:
+            self.subplot_window.add_curve(item)
+            
 class QParamsContextMenu(QMenu):
     
     def __init__(self, point, window):
