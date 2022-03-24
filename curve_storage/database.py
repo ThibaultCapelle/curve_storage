@@ -388,7 +388,7 @@ class SQLDatabase():
             date = float(res[1])
             childs = json.loads(res[2])
             parent = int(res[3])
-            sample = int(res[4])
+            sample = res[4]
             return name, date, childs, parent, sample
         else:
             return None
