@@ -31,6 +31,7 @@ N_ROW_DEFAULT=20
 class WindowWidget(QWidget):
     
     spinbox_changed = QtCore.Signal()
+    pageno_changed = QtCore.Signal()
     row_changed = QtCore.Signal()
     
     
@@ -49,19 +50,24 @@ class WindowWidget(QWidget):
         self.filter_widget = FilterWidget(self)
         
         self.layout_show_first = QHBoxLayout()
+        self.layout_page_number = QHBoxLayout()
         self.layout_global.addWidget(self.filter_widget)
         self.layout_global.addLayout(self.layout_left)
         self.layout_global.addLayout(self.layout_center)
         self.layout_global.addLayout(self.layout_right)
         self.layout_left.addLayout(self.layout_show_first)
+        self.layout_left.addLayout(self.layout_page_number)
         self.spinbox_widget = SpinBoxWidget()
+        self.page_number_spinbox = PageNumberWidget()
         
         self.tree_widget = TreeWidget()
         self.plot_options = plotOptions(self.tree_widget)
         self.param_widget = ParamWidget(self.layout)
         self.layout_right.addWidget(self.param_widget)
         self.show_first_label = QLabel('show first')
-        
+        self.page_number_label = QLabel('page number')
+        self.layout_page_number.addWidget(self.page_number_label)
+        self.layout_page_number.addWidget(self.page_number_spinbox)
         
         self.compute_button = QPushButton('update')
         self.layout_show_first.addWidget(self.show_first_label)
@@ -330,8 +336,11 @@ class FilterWidget(QGroupBox):
                 else:
                     filters.append(res)
         placeholders=[f.item2 for f in filters if  f.placeholder]
-        query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{firsts}")\
+        query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
         .format(fields=sql.SQL(' AND ').join(filters),
+                offset=sql.Composed([sql.SQL(" OFFSET "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" ROWS ")]),
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
                                      sql.Placeholder(),
                                      sql.SQL(" rows only")]))
@@ -737,27 +746,36 @@ class TreeWidget(QTreeWidget):
     def compute(self, first_use=False):
         if first_use:
             new_size=N_ROW_DEFAULT
+            offset=0
         else:
             new_size = self.window().spinbox_widget.current_value
+            offset = (self.window().page_number_spinbox.current_value-1)*new_size
         self.clear()
         database=SQLDatabase()
         if first_use:
             filters=[Filter("id","=","parent")]
-            query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{firsts}")\
+            query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
         .format(fields=sql.SQL(' AND ').join(filters),
+                offset=sql.Composed([sql.SQL(" OFFSET "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" ROWS ")]),
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
                                      sql.Placeholder(),
-                                     sql.SQL(" rows only")])), [new_size]
+                                     sql.SQL(" rows only")])), [offset,new_size]
         elif self.window().add_filters.isChecked():
             query, placeholders=self.window().filter_widget.get_query()
+            placeholders.append(offset)
             placeholders.append(new_size)
         else:
             filters=[Filter("id","=","parent")]
-            query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{firsts}")\
+            query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
         .format(fields=sql.SQL(' AND ').join(filters),
+                offset=sql.Composed([sql.SQL(" OFFSET "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" ROWS ")]),
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
                                      sql.Placeholder(),
-                                     sql.SQL(" rows only")])), [new_size]
+                                     sql.SQL(" rows only")])), [offset, new_size]
         hierarchy = database.get_all_hierarchy(query=query, placeholders=placeholders)
         if len(hierarchy)>0:
             for curve_id, childs, name, date, sample in hierarchy[0]:
@@ -805,6 +823,20 @@ class SpinBoxWidget(QSpinBox):
     def editing_finished(self):
         self.current_value=self.value()
         self.window().spinbox_changed.emit()
+        
+class PageNumberWidget(QSpinBox):
+    
+    def __init__(self):
+        super().__init__()
+        self.editingFinished.connect(self.editing_finished)
+        self.current_value = self.value()
+        self.setValue(1)
+        self.setMaximumWidth(100)
+        
+        
+    def editing_finished(self):
+        self.current_value=self.value()
+        self.window().pageno_changed.emit()
 
 class PlotWidget(pg.PlotWidget):
     
