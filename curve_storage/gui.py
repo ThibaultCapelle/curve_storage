@@ -185,6 +185,12 @@ class PlotWindow(QWidget):
         elif state=='Angle':
             self.plot_widget.getPlotItem().plot(x, y_angle, pen=pen)
         self.plot_widget.getPlotItem().enableAutoRange(enable=False)
+
+class ProjectLineEdit(QLineEdit):
+    
+    def __init__(self, item1):
+        self.item1=item1
+        super().__init__()
         
 class NewFilterWidget(QGroupBox):
     
@@ -192,32 +198,70 @@ class NewFilterWidget(QGroupBox):
         super().__init__(parent=parent)
         self.parent=parent
         self.filter_widget=filter_widget
-        self.global_layout=QHBoxLayout()
+        self.global_layout=QGridLayout()
         self.setLayout(self.global_layout)
         self.item1=QComboBox()
         for column in Filter.columns:
             self.item1.addItem(column)
-        self.global_layout.addWidget(self.item1)
+        self.global_layout.addWidget(self.item1, 0, 0)
         self.item2=QComboBox()
         for operation in ['<','<=','=','>','>=']:
             self.item2.addItem(operation)
-        self.global_layout.addWidget(self.item2)
-        self.item3=QLineEdit()
-        self.global_layout.addWidget(self.item3)
+        self.global_layout.addWidget(self.item2, 0, 1)
+        self.item3=ProjectLineEdit(self.item1)
+        self.global_layout.addWidget(self.item3, 0, 2)
         self.calendar=QCalendarWidget()
-        self.global_layout.addWidget(self.calendar)
+        self.global_layout.addWidget(self.calendar, 0 , 2)
         self.calendar.hide()
         self.remove_button=QToolButton()
         folder=os.path.split(inspect.getfile(Curve))[0]
         self.remove_button.setIcon(QtGui.QIcon(os.path.join(folder,'minus.png')))
-        self.global_layout.addWidget(self.remove_button)
+        self.global_layout.addWidget(self.remove_button, 0, 3)
         self.remove_button.clicked.connect(self.remove)
         self.activate_box = QCheckBox('activate')
+        self.suggestion_list = QComboBox()
+        self.global_layout.addWidget(self.suggestion_list, 1, 2)
+        self.suggestion_list.hide()
+        self.global_layout.addWidget(self.activate_box, 0, 4)
+        self.item1.currentTextChanged.connect(self.column_changed)
+        self.item3.textChanged.connect(self.text_changed)
+        self.suggestion_list.currentTextChanged.connect(self.suggestion_chosen)
+    
+    def suggestion_chosen(self, text):
+        self.item3.textChanged.disconnect(self.text_changed)
+        self.item3.setText(text)
+        self.item3.textChanged.connect(self.text_changed)
+    
+    def text_changed(self, text):
+        if self.item1.currentText()=='project':
+            db=SQLDatabase()
+            db.get_cursor()
+            db.cursor.execute('''SELECT DISTINCT project FROM data WHERE position(%s in project)>0;''',
+                              (text,))
+            res=[k[0] for k in db.cursor.fetchall()]
+            self.item3.textChanged.disconnect(self.text_changed)
+            self.suggestion_list.show()
+            self.suggestion_list.clear()
+            self.suggestion_list.addItem('')
+            for item in res:
+                self.suggestion_list.addItem(item)
+            self.item3.textChanged.connect(self.text_changed)
+        elif self.item1.currentText()=='sample':
+            db=SQLDatabase()
+            db.get_cursor()
+            db.cursor.execute('''SELECT DISTINCT sample FROM data WHERE position(%s in sample)>0;''',
+                              (text,))
+            res=[k[0] for k in db.cursor.fetchall()]
+            self.item3.textChanged.disconnect(self.text_changed)
+            self.suggestion_list.show()
+            self.suggestion_list.clear()
+            self.suggestion_list.addItem('')
+            for item in res:
+                self.suggestion_list.addItem(item)
+            self.item3.textChanged.connect(self.text_changed)
+            
         
-        self.global_layout.addWidget(self.activate_box)
-        self.item1.currentTextChanged.connect(self.columnchanged)
-        
-    def columnchanged(self, text):
+    def column_changed(self, text):
         if text=='date':
             self.item3.hide()
             self.calendar.show()
@@ -236,6 +280,28 @@ class NewFilterWidget(QGroupBox):
             self.item2.clear()
             for operation in ['<','<=','=','>','>=']:
                 self.item2.addItem(operation)
+        if text=='project':
+            self.item3.clear()
+            db=SQLDatabase()
+            db.get_cursor()
+            db.cursor.execute('''SELECT DISTINCT project FROM data;''')
+            res=[k[0] for k in db.cursor.fetchall()]
+            self.suggestion_list.show()
+            self.suggestion_list.clear()
+            self.suggestion_list.addItem('')
+            for item in res:
+                self.suggestion_list.addItem(item)
+        elif text=='sample':
+            self.item3.clear()
+            db=SQLDatabase()
+            db.get_cursor()
+            db.cursor.execute('''SELECT DISTINCT sample FROM data;''')
+            res=[k[0] for k in db.cursor.fetchall()]
+            self.suggestion_list.show()
+            self.suggestion_list.clear()
+            self.suggestion_list.addItem('')
+            for item in res:
+                self.suggestion_list.addItem(item)
         
     def remove(self):
         for widget in [self.remove_button,self.item1,
@@ -456,7 +522,6 @@ class FitButton(QPushButton):
         items=self.plotwidget.getPlotItem()
         current_id=self.treewidget.active_item.data(0,0)
         curve=Curve(current_id)
-        print(items)
         for i, item in enumerate(items.items):
             rect=item.viewRect()
             l, r= (rect.left(), rect.right())
@@ -758,7 +823,7 @@ class TreeWidget(QTreeWidget):
         .format(fields=sql.SQL(' AND ').join(filters),
                 offset=sql.Composed([sql.SQL(" OFFSET "),
                                      sql.Placeholder(),
-                                     sql.SQL(" ROWS ")]),
+                                     sql.SQL(" ROWS")]),
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
                                      sql.Placeholder(),
                                      sql.SQL(" rows only")])), [offset,new_size]
@@ -767,12 +832,13 @@ class TreeWidget(QTreeWidget):
             placeholders.append(offset)
             placeholders.append(new_size)
         else:
+            print(self.window().page_number_spinbox.current_value)
             filters=[Filter("id","=","parent")]
             query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
         .format(fields=sql.SQL(' AND ').join(filters),
                 offset=sql.Composed([sql.SQL(" OFFSET "),
                                      sql.Placeholder(),
-                                     sql.SQL(" ROWS ")]),
+                                     sql.SQL(" ROWS")]),
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
                                      sql.Placeholder(),
                                      sql.SQL(" rows only")])), [offset, new_size]
@@ -829,8 +895,8 @@ class PageNumberWidget(QSpinBox):
     def __init__(self):
         super().__init__()
         self.editingFinished.connect(self.editing_finished)
-        self.current_value = self.value()
         self.setValue(1)
+        self.current_value = self.value()
         self.setMaximumWidth(100)
         
         
