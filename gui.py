@@ -224,13 +224,13 @@ class NewFilterWidget(QGroupBox):
         self.suggestion_list.hide()
         self.global_layout.addWidget(self.activate_box, 0, 4)
         self.item1.currentTextChanged.connect(self.column_changed)
-        self.item3.textChanged.connect(self.text_changed)
+        self.item3.textEdited.connect(self.text_changed)
+        self.restart=False
         self.suggestion_list.currentTextChanged.connect(self.suggestion_chosen)
     
     def suggestion_chosen(self, text):
-        self.item3.textChanged.disconnect(self.text_changed)
-        self.item3.setText(text)
-        self.item3.textChanged.connect(self.text_changed)
+        if not self.restart:
+            self.item3.setText(text)
     
     def text_changed(self, text):
         if self.item1.currentText()=='project':
@@ -239,26 +239,26 @@ class NewFilterWidget(QGroupBox):
             db.cursor.execute('''SELECT DISTINCT project FROM data WHERE position(%s in project)>0;''',
                               (text,))
             res=[k[0] for k in db.cursor.fetchall()]
-            self.item3.textChanged.disconnect(self.text_changed)
+            self.restart=True
             self.suggestion_list.show()
             self.suggestion_list.clear()
             self.suggestion_list.addItem('')
             for item in res:
                 self.suggestion_list.addItem(item)
-            self.item3.textChanged.connect(self.text_changed)
+            self.restart=False
         elif self.item1.currentText()=='sample':
             db=SQLDatabase()
             db.get_cursor()
             db.cursor.execute('''SELECT DISTINCT sample FROM data WHERE position(%s in sample)>0;''',
                               (text,))
             res=[k[0] for k in db.cursor.fetchall()]
-            self.item3.textChanged.disconnect(self.text_changed)
+            self.restart=True
             self.suggestion_list.show()
             self.suggestion_list.clear()
             self.suggestion_list.addItem('')
             for item in res:
                 self.suggestion_list.addItem(item)
-            self.item3.textChanged.connect(self.text_changed)
+            self.restart=False
             
         
     def column_changed(self, text):
