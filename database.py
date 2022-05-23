@@ -158,7 +158,6 @@ class SQLDatabase():
             childs=[]
             for k in res:
                 childs+=json.loads(k[1])
-        self.get_cursor()
         return hierarchy
     
     def get_name_and_time(self, curve_id):
@@ -383,15 +382,60 @@ class SQLDatabase():
     def get_curve_metadata(self, curve_id):
         if self.exists(curve_id):
             self.get_cursor()
-            self.cursor.execute('''SELECT name, date, childs, parent FROM data WHERE id=%s;''', (int(curve_id),))
+            self.cursor.execute('''SELECT name, date, childs, parent, sample FROM data WHERE id=%s;''', (int(curve_id),))
             res = self.cursor.fetchone()
             name = res[0]
             date = float(res[1])
             childs = json.loads(res[2])
             parent = int(res[3])
-            return name, date, childs, parent
+            sample = res[4]
+            return name, date, childs, parent, sample
         else:
             return None
+    
+    def get_subhierarchy(self, curve_id, res=None):
+        childs=self.get_childs(curve_id)
+        if res is None:
+            res=dict({curve_id:childs})
+            res=self.get_subhierarchy(childs, res=res)
+        else:
+            for cid, child in childs:
+                res[cid]=child
+                res=self.get_subhierarchy(child, res=res)
+        return res
+    
+    def _get_full_subhierarchy_recursive(self, res, child_dict, data_dict):
+        for k in res.keys():
+            res[k]['childs']=[]
+            for child in child_dict[k]:
+                res[k]['childs'].append(self._get_full_subhierarchy_recursive(
+                        dict({child:data_dict[child]}),
+                        child_dict,
+                        data_dict))
+        return res
+    
+    def get_full_subhierarchy(self, curve_id):
+        child_dict=self.get_subhierarchy(curve_id)
+        datas=self.get_name_and_time_and_sample(list(child_dict.keys()))
+        data_dict=dict()
+        for cid, name, t, sample in datas:
+            directory=self.get_folder_from_date(float(t))
+            filename=os.path.join(directory, '{:}.h5'.format(int(cid)))
+            with h5py.File(filename, 'r') as f:
+                            data=f['data']
+                            x=data[0]
+                            y=data[1]
+                            params=self.extract_dictionary(dict(), data.attrs)
+            data_dict[cid]=dict({'x':x,
+                                     'y':y,
+                                     'params':params,
+                                     'timestamp':float(t),
+                                     'name':name,
+                                     'sample':sample})
+        return self._get_full_subhierarchy_recursive(
+                dict({curve_id:data_dict[curve_id]}),
+                child_dict, data_dict)
+        
     
     def get_curve_childs_and_parent(self, curve_id):
         if self.exists(curve_id):
@@ -419,7 +463,14 @@ class SQLDatabase():
             return None
     
     def get_childs(self, curve_id):
-        if self.exists(curve_id):
+        if isinstance(curve_id, list):
+            self.get_cursor()
+            self.cursor.execute('''SELECT id, childs FROM data WHERE id=ANY(%s);''', (curve_id,))
+            res = []
+            for cid, childs in self.cursor.fetchall():
+                res.append([int(cid), json.loads(childs)])
+            return res
+        elif self.exists(curve_id):
             self.get_cursor()
             self.cursor.execute('''SELECT childs FROM data WHERE id=%s;''', (int(curve_id),))
             res = self.cursor.fetchone()
@@ -443,16 +494,15 @@ class SQLDatabase():
                                  int(curve.id)))
     
     def delete_entry(self, curve_id):
-        #curve = self.get_curve(curve_id)
         res=self.get_curve_metadata(curve_id)
         if res is not None:
-            name, date, childs, parent = res
+            name, date, childs, parent, sample = res
             for child in childs:
                 self.delete_entry(child)
             if parent!=int(curve_id):
                 res=self.get_curve_metadata(parent)
                 if res is not None:
-                    name_parent, date_parent, childs_parent, parent_id = res
+                    name_parent, date_parent, childs_parent, parent_id, sample = res
                     if int(curve_id) in childs_parent:
                         childs_parent.remove(int(curve_id))
                         with transaction(self.db):
@@ -514,9 +564,16 @@ class SQLDatabase():
         return self.cursor.fetchone() is not None
     
     def get_time_from_id(self, curve_id):
-        self.get_cursor()
-        self.cursor.execute('''SELECT date FROM data WHERE id=%s;''', (int(curve_id),))
-        return float(self.cursor.fetchone()[0])
+        if isinstance(curve_id, list):
+            self.get_cursor()
+            self.cursor.execute('''SELECT id, date FROM data WHERE id=ANY(%s);''',
+                                (curve_id,))
+            return self.cursor.fetchall()
+        else:
+            self.get_cursor()
+            self.cursor.execute('''SELECT date FROM data WHERE id=%s;''',
+                                (int(curve_id),))
+            return float(self.cursor.fetchone()[0])
 
     def get_folder_from_date(self, date):
         path = os.path.join(self.data_location,
@@ -536,11 +593,6 @@ class SQLDatabase():
                             time.strftime("%d",time.gmtime(t)))
         assert os.path.exists(path)
         return path
-    '''
-    def delete_all_data(self):
-        while(self.get_n_keys()>0):
-            curve_id=self.get_one_id()
-            self.delete_entry(curve_id)'''
     
     def close(self):
         self.db.close()
