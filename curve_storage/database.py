@@ -451,16 +451,17 @@ class SQLDatabase():
     def get_params(self, curve_id):
         if self.exists(curve_id):
             folder=self.get_folder_from_id(curve_id)
-            try:
-                res=dict()
-                with open(os.path.join(folder, '{:}.h5'), 'r') as f:
-                    res=self.extract_dictionary(res, f['data'].attrs)
-                return res
-            except OSError:
-                print('a data file could not be opened')
-                return None
-        else:
-            return None
+            filename=os.path.join(folder, '{:}.h5'.format(int(curve_id)))
+            with h5py.File(filename, 'r') as f:
+                res=self.extract_dictionary(f['data'].attrs)
+            return res
+    
+    def update_params(self, curve_id, **kwargs):
+        if self.exists(curve_id):
+            folder=self.get_folder_from_id(curve_id)
+            filename=os.path.join(folder, '{:}.h5'.format(int(curve_id)))
+            with h5py.File(filename, 'r+') as f:
+                f['data'].attrs.update(kwargs)
     
     def get_childs(self, curve_id):
         if isinstance(curve_id, list):

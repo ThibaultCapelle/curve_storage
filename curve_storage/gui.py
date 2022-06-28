@@ -676,6 +676,50 @@ class QParamsContextMenu(QMenu):
         self.setGeometry(self.window_position.
                          translated(point)
                          .translated(self.window.param_widget.geometry().topLeft()))
+        self.add_param_action.triggered.connect(self.add_param_menu)
+    
+    def add_param_menu(self):
+        if hasattr(self.window.tree_widget, 'active_item'):
+            item = self.window.tree_widget.active_item.data(0,0)
+            if item is not None:
+                self.add_param_window=NewParamWindow(self)
+    
+    def add_param(self, *args):
+        if len(args)==1:
+            name, value=args[0], 0
+        else:
+            name, value=args
+        kwargs=dict({name:value})
+        print(kwargs)
+        db=SQLDatabase()
+        db.update_params(self.window.tree_widget.active_item.data(0,0),
+                         **kwargs)
+                
+
+class NewParamWindow(QWidget):
+    
+    def __init__(self, parent):
+        super().__init__()
+        self.parent=parent
+        self.global_layout=QHBoxLayout()
+        self.setLayout(self.global_layout)
+        self.global_layout.addWidget(QLabel('Name'))
+        self.name_edit=QLineEdit()
+        self.global_layout.addWidget(self.name_edit)
+        self.global_layout.addWidget(QLabel('Value'))
+        self.value_edit=QLineEdit()
+        self.validate_button=QPushButton("Validate")
+        self.global_layout.addWidget(self.value_edit)
+        self.global_layout.addWidget(self.validate_button)
+        self.validate_button.clicked.connect(self.validate)
+        self.show()
+    
+    def validate(self):
+        name=self.name_edit.text()
+        value=self.value_edit.text()
+        self.parent.add_param(name, value)
+        self.close()
+    
 
 class ParamWidget(QTableWidget):
     
@@ -720,6 +764,7 @@ class ParamWidget(QTableWidget):
                     pass
     
     def contextMenuEvent(self, event):
+        print('yolo')
         current_id=self.window().tree_widget.active_item.data(0,0)
         if current_id is not None:
             self.menu = QMenu(self)
