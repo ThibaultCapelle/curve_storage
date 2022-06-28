@@ -37,6 +37,7 @@ class WindowWidget(QWidget):
     
     def __init__(self):
         super().__init__()
+        self.setWindowTitle('Curve Database GUI')
         self.layout_global = QHBoxLayout()
         self.layout_left = QVBoxLayout()
         self.layout_center = QVBoxLayout()
@@ -664,19 +665,24 @@ class QTreeContextMenu(QMenu):
             
 class QParamsContextMenu(QMenu):
     
-    def __init__(self, point, window):
+    def __init__(self, point, window, current_param):
         super().__init__()
         self.window=window
         self.add_param_action=self.addAction("Add param")
         self.setVisible(True)
+        self.current_param=current_param
+        if self.current_param is not None:
+            self.delete_param_action=self.addAction("Delete param")
         self.show()
         self.window_position=self.window.geometry()
         #self.header_position=self.item.treeWidget().header().geometry()
-        self.setFixedSize(100, 25)
+        self.setFixedSize(self.sizeHint())
         self.setGeometry(self.window_position.
                          translated(point)
                          .translated(self.window.param_widget.geometry().topLeft()))
         self.add_param_action.triggered.connect(self.add_param_menu)
+        if self.current_param is not None:
+            self.delete_param_action.triggered.connect(self.delete_param_menu)
     
     def add_param_menu(self):
         if hasattr(self.window.tree_widget, 'active_item'):
@@ -684,22 +690,31 @@ class QParamsContextMenu(QMenu):
             if item is not None:
                 self.add_param_window=NewParamWindow(self)
     
+    def delete_param_menu(self):
+        db=SQLDatabase()
+        db.remove_param(self.window.tree_widget.active_item.data(0,0),
+                         self.current_param)
+        self.window.tree_widget.compute()
+        self.close()
+    
     def add_param(self, *args):
         if len(args)==1:
             name, value=args[0], 0
         else:
             name, value=args
         kwargs=dict({name:value})
-        print(kwargs)
         db=SQLDatabase()
         db.update_params(self.window.tree_widget.active_item.data(0,0),
                          **kwargs)
+        self.window.tree_widget.compute()
+        self.close()
                 
 
 class NewParamWindow(QWidget):
     
     def __init__(self, parent):
         super().__init__()
+        self.setWindowTitle('Add a parameter')
         self.parent=parent
         self.global_layout=QHBoxLayout()
         self.setLayout(self.global_layout)
@@ -725,6 +740,8 @@ class ParamWidget(QTableWidget):
     
     def __init__(self, layout):
         super().__init__()
+        self.setMouseTracking(True);
+        self.viewport().setMouseTracking(True);
         self.layout=layout
         self.setColumnCount(2)
         self.setHorizontalHeaderLabels(['Param', 'Value'])
@@ -737,9 +754,15 @@ class ParamWidget(QTableWidget):
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
+        self.current_param=None
+        self.cellEntered.connect(self.cellClickedSlot)
+    
+    def cellClickedSlot(self, row, column):
+        self.current_param=self.item(row, 0).text()
     
     def RightClickMenu(self, point):
-        self.contextMenu=QParamsContextMenu(point, self.window())
+        self.contextMenu=QParamsContextMenu(point, self.window(),
+                                            self.current_param)
     
     def actualize(self, params):
         item = self.window().tree_widget.active_item

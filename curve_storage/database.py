@@ -463,6 +463,13 @@ class SQLDatabase():
             with h5py.File(filename, 'r+') as f:
                 f['data'].attrs.update(kwargs)
     
+    def remove_param(self, curve_id, key):
+        if self.exists(curve_id):
+            folder=self.get_folder_from_id(curve_id)
+            filename=os.path.join(folder, '{:}.h5'.format(int(curve_id)))
+            with h5py.File(filename, 'r+') as f:
+                f['data'].attrs.pop(key)
+    
     def get_childs(self, curve_id):
         if isinstance(curve_id, list):
             self.get_cursor()
