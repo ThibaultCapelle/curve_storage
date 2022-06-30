@@ -729,6 +729,10 @@ class NewParamWindow(QWidget):
         self.validate_button.clicked.connect(self.validate)
         self.show()
     
+    def keyPressEvent(self, event):
+        if event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
+            self.validate()
+    
     def validate(self):
         name=self.name_edit.text()
         value=self.value_edit.text()
