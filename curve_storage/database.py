@@ -453,7 +453,7 @@ class SQLDatabase():
             folder=self.get_folder_from_id(curve_id)
             filename=os.path.join(folder, '{:}.h5'.format(int(curve_id)))
             with h5py.File(filename, 'r') as f:
-                res=self.extract_dictionary(f['data'].attrs)
+                res=self.extract_dictionary(dict(), f['data'].attrs)
             return res
     
     def update_params(self, curve_id, **kwargs):

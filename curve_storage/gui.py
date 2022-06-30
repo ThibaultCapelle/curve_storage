@@ -694,7 +694,7 @@ class QParamsContextMenu(QMenu):
         db=SQLDatabase()
         db.remove_param(self.window.tree_widget.active_item.data(0,0),
                          self.current_param)
-        self.window.tree_widget.compute()
+        self.window.param_widget.actualize()
         self.close()
     
     def add_param(self, *args):
@@ -706,7 +706,7 @@ class QParamsContextMenu(QMenu):
         db=SQLDatabase()
         db.update_params(self.window.tree_widget.active_item.data(0,0),
                          **kwargs)
-        self.window.tree_widget.compute()
+        self.window.param_widget.actualize()
         self.close()
                 
 
@@ -764,11 +764,13 @@ class ParamWidget(QTableWidget):
         self.contextMenu=QParamsContextMenu(point, self.window(),
                                             self.current_param)
     
-    def actualize(self, params):
+    def actualize(self, params=None):
         item = self.window().tree_widget.active_item
         if item is not None:
             self.clear()
             self.setHorizontalHeaderLabels(['Param', 'Value'])
+            if params is None:
+                params=SQLDatabase().get_params(item.data(0,0))
             self.setRowCount(len(params.keys()))
             for i,(k, v) in enumerate(params.items()):
                 key = QTableWidgetItem()
