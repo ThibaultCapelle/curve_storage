@@ -751,30 +751,49 @@ class ParamWidget(QTableWidget):
         self.setHorizontalHeaderLabels(['Param', 'Value'])
         self.verticalHeader().setVisible(False)
         self.setMaximumWidth(300)
-        #self.itemChanged.connect(self.item_changed)
         self.clicked_item=None
         self.previous_content=None
-        #self.itemClicked.connect(self.item_clicked)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
         self.current_param=None
-        self.cellEntered.connect(self.cellClickedSlot)
+        self.cellEntered.connect(self.cellEnteredSlot)
+        self.cellChanged.connect(self.cellChangedSlot)
     
-    def cellClickedSlot(self, row, column):
+    def cellEnteredSlot(self, row, column):
         self.current_param=self.item(row, 0).text()
+    
+    def cellChangedSlot(self, row, column):
+        print('changed cell in {:} {:}'.format(self.item(row, 0).text(),
+                                    self.item(row, 1).text()))
+        if column==1:
+            new_param=dict({self.item(row, 0).text():
+                            self.item(row, 1).text()})
+        else:
+            new_param=dict()
+            for row in range(self.rowCount()):
+                new_param[self.item(row, 0).text()]=self.item(row, 1).text()
+        item = self.window().tree_widget.active_item
+        if item is not None:
+            db=SQLDatabase()
+            db.update_params(item.data(0,0),
+                             **new_param)
+            self.window().param_widget.actualize()
     
     def RightClickMenu(self, point):
         self.contextMenu=QParamsContextMenu(point, self.window(),
                                             self.current_param)
     
     def actualize(self, params=None):
+        self.cellChanged.disconnect()
         item = self.window().tree_widget.active_item
         if item is not None:
             self.clear()
             self.setHorizontalHeaderLabels(['Param', 'Value'])
             if params is None:
                 params=SQLDatabase().get_params(item.data(0,0))
+                if 'comment' in params.keys():
+                    params.pop('comment')
             self.setRowCount(len(params.keys()))
             for i,(k, v) in enumerate(params.items()):
                 key = QTableWidgetItem()
@@ -783,6 +802,7 @@ class ParamWidget(QTableWidget):
                 value = QTableWidgetItem()
                 value.setText(str(v))
                 self.setItem(i,1,value)
+        self.cellChanged.connect(self.cellChangedSlot)
     
     def mousePressEvent(self, event):
         if event.button()==QtCore.Qt.RightButton:
