@@ -6,11 +6,11 @@ Created on Thu Dec  6 15:11:28 2018
 """
 
 from PyQt5.QtWidgets import (QApplication,
-QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
+QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem, 
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
 QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
-QCalendarWidget )
+QCalendarWidget, QRadioButton)
 from PyQt5.QtCore import QRect, QPoint, QSize
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -33,6 +33,7 @@ class WindowWidget(QWidget):
     spinbox_changed = QtCore.Signal()
     pageno_changed = QtCore.Signal()
     row_changed = QtCore.Signal()
+    
     
     
     def __init__(self):
@@ -87,12 +88,14 @@ class WindowWidget(QWidget):
         self.layout_bottom.addWidget(self.directory_button)
         self.plot_figure_button = PlotFigureButton(self.tree_widget,
                                                    self.plot_widget)
+        self.plot_figure_options_button = PlotFigureOptionButton(self)
         self.fit_functions=FitFunctions(self.tree_widget)
         self.fit_button = FitButton(self.tree_widget,
                                     self.plot_widget)
         self.save_fit_button = SaveFitButton(self.tree_widget,
                                     self.plot_widget)
         self.layout_bottom.addWidget(self.plot_figure_button)
+        self.layout_bottom.addWidget(self.plot_figure_options_button)
         self.layout_bottom.addWidget(self.fit_functions)
         self.layout_bottom.addWidget(self.fit_button)
         self.layout_bottom.addWidget(self.save_fit_button)
@@ -107,6 +110,14 @@ class WindowWidget(QWidget):
         self.setMaximumHeight(600)
         self.show()
         self.move(0,0)
+        self.plot_figure_options=dict({'marker':'-',
+                                       'linewidth':2,
+                                       'markersize':1,
+                                       'xscale':1,
+                                       'yscale':1,
+                                       'xlabel':'Time (s)',
+                                       'ylabel':'Value (a.u.)'})
+        
 
 class LegendWidget(QWidget):
     
@@ -503,13 +514,79 @@ class PlotFigureButton(QPushButton):
             xmin, xmax=np.min([l,r]), np.max([l,r])
             ymin, ymax=np.min([b,t]), np.max([b,t])
             x, y = item.getData()
+            options=self.window().plot_figure_options_button.get_values()
             plt.figure()
             plt.title('id : {:}'.format(current_id))
-            plt.plot(x, y, '.')
+            plt.xlabel(options.pop('xlabel'))
+            plt.ylabel(options.pop('ylabel'))
+            x*=float(options.pop('xscale'))
+            y*=float(options.pop('yscale'))
+            plt.plot(x,
+                     y,
+                     options.pop('marker'),
+                     markersize=options['markersize'],
+                     linewidth=options['linewidth']
+                     )
             plt.xlim([xmin, xmax])
             plt.ylim([ymin, ymax])
             plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
-
+        
+class PlotFigureOptionButton(QPushButton):
+    
+    def __init__(self, parent):
+        super().__init__()
+        self.parent=parent
+        self.setText('Plot Figure options')
+        self.elements=dict({'marker':[QComboBox,'-'],
+                           'linewidth':[QLineEdit,'2'],
+                           'markersize':[QLineEdit,'1'],
+                           'xscale':[QLineEdit,'1'],
+                           'yscale':[QLineEdit,'1'],
+                           'xlabel':[QLineEdit,'Time (s)'],
+                           'ylabel':[QLineEdit,'Value (a.u.)']})
+        self.widgets=dict().fromkeys(self.elements.keys())
+        self.marker_dict=dict({'.':0,
+                               '-':1})
+        self.clicked.connect(self.action)
+    
+    def action(self):
+        self.option_window=QWidget()
+        self.layout=QGridLayout()
+        self.option_window.setLayout(self.layout)
+        for i, (key, val) in enumerate(self.elements.items()):
+            self.widgets[key]=val[0]()
+            self.layout.addWidget(self.widgets[key] ,i , 0)
+            self.layout.addWidget(QLabel(key),i , 1)
+            if key=='marker':
+                self.widgets[key].addItems(['.', '-'])
+        self.set_default_values()
+        self.confirm_button=QPushButton('confirm')
+        N=len(self.elements.keys())
+        self.layout.addWidget(self.confirm_button, N, 0)
+        self.confirm_button.clicked.connect(self.confirm)
+        self.option_window.show()
+    
+    def confirm(self):
+        for i, (key, val) in enumerate(self.elements.items()):
+            if val[0]==QLineEdit:
+                self.elements[key][1]=self.widgets[key].text()
+            elif val[0]==QComboBox:
+                self.elements[key][1]=self.widgets[key].currentText()
+        self.option_window.close()
+    
+    def set_default_values(self):
+        marker_index=self.marker_dict[self.elements['marker'][1]]
+        self.widgets['marker'].setCurrentIndex(marker_index)
+        for key, val in self.elements.items():
+            if val[0]== QLineEdit:
+                self.widgets[key].setText(val[1])
+    
+    def get_values(self):
+        res=dict()
+        for key, val in self.elements.items():
+            res[key]=val[1]
+        return res
+        
 class FitButton(QPushButton):
     
     def __init__(self, treewidget, plotwidget):
