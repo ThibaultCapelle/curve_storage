@@ -10,7 +10,7 @@ QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem, 
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
 QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
-QCalendarWidget, QRadioButton)
+QCalendarWidget, QRadioButton, QColorDialog)
 from PyQt5.QtCore import QRect, QPoint, QSize
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -525,11 +525,43 @@ class PlotFigureButton(QPushButton):
                      y,
                      options.pop('marker'),
                      markersize=options['markersize'],
-                     linewidth=options['linewidth']
-                     )
+                     linewidth=options['linewidth'],
+                     color=options['color'])
             plt.xlim([xmin, xmax])
             plt.ylim([ymin, ymax])
             plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
+
+class ColorPlotOption(QLabel):
+    
+    def __init__(self, parent):
+        super().__init__()
+        self.parent=parent
+        self.setAutoFillBackground(True)
+    
+    def get_color(self):
+        return self.color.name()
+        
+    def set_color(self, color):
+        self.color  = QtGui.QColor(color)
+        values = "{r}, {g}, {b}, {a}".format(r = self.color.red(),
+                                             g = self.color.green(),
+                                             b = self.color.blue(),
+                                             a = self.color.alpha()
+                                             )
+        self.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
+    
+    def mouseDoubleClickEvent(self, event):
+        self.choose_color()
+        
+    def choose_color(self):
+        self.dialog=QColorDialog(self)
+        self.dialog.setOption(QColorDialog.ShowAlphaChannel)
+        self.dialog.colorSelected.connect(self.new_color)
+        self.dialog.exec_()
+    
+    def new_color(self, color):
+        self.set_color(color.name())
+        self.parent.elements['color'][1]=color.name()
         
 class PlotFigureOptionButton(QPushButton):
     
@@ -543,7 +575,8 @@ class PlotFigureOptionButton(QPushButton):
                            'xscale':[QLineEdit,'1'],
                            'yscale':[QLineEdit,'1'],
                            'xlabel':[QLineEdit,'Time (s)'],
-                           'ylabel':[QLineEdit,'Value (a.u.)']})
+                           'ylabel':[QLineEdit,'Value (a.u.)'],
+                           'color':[ColorPlotOption,'#921515']})
         self.widgets=dict().fromkeys(self.elements.keys())
         self.marker_dict=dict({'.':0,
                                '-':1})
@@ -554,7 +587,7 @@ class PlotFigureOptionButton(QPushButton):
         self.layout=QGridLayout()
         self.option_window.setLayout(self.layout)
         for i, (key, val) in enumerate(self.elements.items()):
-            self.widgets[key]=val[0]()
+            self.widgets[key]=val[0](self)
             self.layout.addWidget(self.widgets[key] ,i , 0)
             self.layout.addWidget(QLabel(key),i , 1)
             if key=='marker':
@@ -577,6 +610,7 @@ class PlotFigureOptionButton(QPushButton):
     def set_default_values(self):
         marker_index=self.marker_dict[self.elements['marker'][1]]
         self.widgets['marker'].setCurrentIndex(marker_index)
+        self.widgets['color'].set_color(self.elements['color'][1])
         for key, val in self.elements.items():
             if val[0]== QLineEdit:
                 self.widgets[key].setText(val[1])
