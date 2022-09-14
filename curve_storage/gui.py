@@ -511,16 +511,19 @@ class PlotFigureButton(QPushButton):
             rect=item.viewRect()
             l, b, r, t = (rect.left(), rect.bottom(), 
                                       rect.right(), rect.top())
-            xmin, xmax=np.min([l,r]), np.max([l,r])
-            ymin, ymax=np.min([b,t]), np.max([b,t])
+            
             x, y = item.getData()
             options=self.window().plot_figure_options_button.get_values()
             plt.figure()
             plt.title('id : {:}'.format(current_id))
             plt.xlabel(options.pop('xlabel'))
             plt.ylabel(options.pop('ylabel'))
-            x*=float(options.pop('xscale'))
-            y*=float(options.pop('yscale'))
+            x*=float(options['xscale'])
+            y*=float(options['yscale'])
+            xmin, xmax=(np.min([l,r])*float(options['xscale']),
+                        np.max([l,r])*float(options['xscale']))
+            ymin, ymax=(np.min([b,t])*float(options['yscale']),
+                        np.max([b,t])*float(options['yscale']))
             plt.plot(x,
                      y,
                      options.pop('marker'),
