@@ -10,13 +10,7 @@ import numpy as np
 
 import numpy as np
 
-class Fit(FitBase):
-    
-    @staticmethod
-    def cavity_reflection(x, params):
-        '''Fit function for the MW cavity in reflection.'''
-        Fit.cavity_reflection.keys= ['x0', 'kappa_c_hz',
-                                     'kappa_hz', 'K', 'elec', 'phi', 'phi2']
+
 class Fit(FitBase):
     
     @staticmethod
