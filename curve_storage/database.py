@@ -12,8 +12,11 @@ DATABASE_HOST=r'quarpi.qopt.nbi.dk'
 if not sys.platform=='linux':
     if 'USERPROFILE' in os.environ.keys():
         ROOT=os.environ['USERPROFILE']
+    elif sys.platform=='darwin':
+        ROOT=os.environ['HOME']
     else:
         ROOT=os.path.join(os.environ['HOMEDRIVE'], os.environ['HOMEPATH'])
+
 else:
     ROOT=os.environ['HOME']
 
