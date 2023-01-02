@@ -646,13 +646,8 @@ class FitButton(QPushButton):
         y=curve.y[cond]
         x=np.real(curve.x[cond])
         self.fit_function=self.treewidget.fit_function
-        self.fitparams, self.cov_x=Fit.fit(x,y, 
-                               function=self.fit_function,
-                               extract_covariance=True)
-        self.resVariance=np.sum((y-\
-                    getattr(Fit, self.fit_function)(x, self.fitparams))**2)/\
-                    (len(x)-len(self.fitparams))
-        self.err_fit=np.sqrt( np.diag( self.cov_x * self.resVariance))
+        self.fitparams=Fit.fit(x,y, 
+                               function=self.fit_function)
         if hasattr(getattr(Fit, self.fit_function), 'keys'):
             self.keys=getattr(getattr(Fit, self.fit_function), 'keys')
         self.x_fit=np.linspace(np.min(x), np.max(x), 1000)
@@ -710,9 +705,7 @@ class SaveFitButton(QPushButton):
         fitfunction=fitbutton.fit_function
         keys=fitbutton.keys
         params=dict({k: v for k,v in zip(keys, fitparams)})
-        params_cov=dict({k+'_cov': err for k,err in zip(keys, 
-                                                        fitbutton.err_fit)})
-        fitcurve=Curve(x,y, name=fitfunction, **params, **params_cov)
+        fitcurve=Curve(x,y, name=fitfunction, **params)
         fitcurve.move(curve)
 
 class SaveButton(QPushButton):

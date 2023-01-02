@@ -8,8 +8,6 @@ Created on Tue Jan 18 09:36:52 2022
 from FitModule.fit_module import FitBase
 import numpy as np
 
-import numpy as np
-
 
 class Fit(FitBase):
     
