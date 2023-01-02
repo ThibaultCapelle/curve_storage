@@ -185,7 +185,7 @@ class PlotWindow(QWidget):
         if state=='dB':
             x=x[y_abs!=0]
             y_abs=y_abs[y_abs!=0]
-            self.plot_widget.getPlotItem().plot(x, 20*np.log10(y_abs), pen=pen)
+            self.plot_widget.getPlotItem().plot(x, 10*np.log10(y_abs), pen=pen)
         elif state=='Real':
             self.plot_widget.getPlotItem().plot(x, y_r, pen=pen)
         elif state=='Imaginary':
@@ -663,8 +663,8 @@ class FitButton(QPushButton):
         if state=='dB':
             x_fit=self.x_fit[np.abs(self.y_fit)!=0]
             y_fit=self.y_fit[np.abs(self.y_fit)!=0]
-            self.plotwidget.fit_curve=self.getPlotItem().plot(x_fit,
-                                                      20*np.log10(y_fit),
+            self.plotwidget.fit_curve=self.plotwidget.getPlotItem().plot(x_fit,
+                                                      10*np.log10(y_fit),
                                                       pen=pg.mkPen('b'))
         elif state=='Real':
             self.plotwidget.fit_curve=self.plotwidget.\
@@ -1133,7 +1133,7 @@ class PlotWidget(pg.PlotWidget):
             if state=='dB':
                 x=x[y_abs!=0]
                 y_abs=y_abs[y_abs!=0]
-                self.getPlotItem().plot(x, 20*np.log10(y_abs))
+                self.getPlotItem().plot(x, 10*np.log10(y_abs))
             elif state=='Real':
                 self.getPlotItem().plot(x, y_r)
             elif state=='Imaginary':
