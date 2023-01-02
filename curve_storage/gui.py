@@ -649,10 +649,6 @@ class FitButton(QPushButton):
         self.fitparams, self.cov_x=Fit.fit(x,y, 
                                function=self.fit_function,
                                extract_covariance=True)
-        self.resVariance=np.sum((y-\
-                    getattr(Fit, self.fit_function)(x, self.fitparams))**2)/\
-                    (len(x)-len(self.fitparams))
-        self.err_fit=np.sqrt( np.diag( self.cov_x * self.resVariance))
         if hasattr(getattr(Fit, self.fit_function), 'keys'):
             self.keys=getattr(getattr(Fit, self.fit_function), 'keys')
         self.x_fit=np.linspace(np.min(x), np.max(x), 1000)
@@ -710,8 +706,8 @@ class SaveFitButton(QPushButton):
         fitfunction=fitbutton.fit_function
         keys=fitbutton.keys
         params=dict({k: v for k,v in zip(keys, fitparams)})
-        params_cov=dict({k+'_cov': err for k,err in zip(keys, 
-                                                        fitbutton.err_fit)})
+        params_cov=dict({k+'_std': np.sqrt(fitbutton.cov_x[i][i]) for i, k in\
+                         enumerate(keys)})
         fitcurve=Curve(x,y, name=fitfunction, **params, **params_cov)
         fitcurve.move(curve)
 
@@ -934,7 +930,6 @@ class ParamWidget(QTableWidget):
                     pass
     
     def contextMenuEvent(self, event):
-        print('yolo')
         current_id=self.window().tree_widget.active_item.data(0,0)
         if current_id is not None:
             self.menu = QMenu(self)
@@ -1047,7 +1042,6 @@ class TreeWidget(QTreeWidget):
             placeholders.append(offset)
             placeholders.append(new_size)
         else:
-            print(self.window().page_number_spinbox.current_value)
             filters=[Filter("id","=","parent")]
             query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
         .format(fields=sql.SQL(' AND ').join(filters),
