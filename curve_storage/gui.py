@@ -6,11 +6,11 @@ Created on Thu Dec  6 15:11:28 2018
 """
 
 from PyQt5.QtWidgets import (QApplication,
-QMessageBox, QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
+QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem, 
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
 QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
-QCalendarWidget )
+QCalendarWidget, QRadioButton, QColorDialog)
 from PyQt5.QtCore import QRect, QPoint, QSize
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -35,8 +35,10 @@ class WindowWidget(QWidget):
     row_changed = QtCore.Signal()
     
     
+    
     def __init__(self):
         super().__init__()
+        self.setWindowTitle('Curve Database GUI')
         self.layout_global = QHBoxLayout()
         self.layout_left = QVBoxLayout()
         self.layout_center = QVBoxLayout()
@@ -86,12 +88,14 @@ class WindowWidget(QWidget):
         self.layout_bottom.addWidget(self.directory_button)
         self.plot_figure_button = PlotFigureButton(self.tree_widget,
                                                    self.plot_widget)
+        self.plot_figure_options_button = PlotFigureOptionButton(self)
         self.fit_functions=FitFunctions(self.tree_widget)
         self.fit_button = FitButton(self.tree_widget,
                                     self.plot_widget)
         self.save_fit_button = SaveFitButton(self.tree_widget,
                                     self.plot_widget)
         self.layout_bottom.addWidget(self.plot_figure_button)
+        self.layout_bottom.addWidget(self.plot_figure_options_button)
         self.layout_bottom.addWidget(self.fit_functions)
         self.layout_bottom.addWidget(self.fit_button)
         self.layout_bottom.addWidget(self.save_fit_button)
@@ -106,6 +110,14 @@ class WindowWidget(QWidget):
         self.setMaximumHeight(600)
         self.show()
         self.move(0,0)
+        self.plot_figure_options=dict({'marker':'-',
+                                       'linewidth':2,
+                                       'markersize':1,
+                                       'xscale':1,
+                                       'yscale':1,
+                                       'xlabel':'Time (s)',
+                                       'ylabel':'Value (a.u.)'})
+        
 
 class LegendWidget(QWidget):
     
@@ -499,16 +511,119 @@ class PlotFigureButton(QPushButton):
             rect=item.viewRect()
             l, b, r, t = (rect.left(), rect.bottom(), 
                                       rect.right(), rect.top())
-            xmin, xmax=np.min([l,r]), np.max([l,r])
-            ymin, ymax=np.min([b,t]), np.max([b,t])
+            
             x, y = item.getData()
+            options=self.window().plot_figure_options_button.get_values()
             plt.figure()
             plt.title('id : {:}'.format(current_id))
-            plt.plot(x, y, '.')
+            plt.xlabel(options.pop('xlabel'))
+            plt.ylabel(options.pop('ylabel'))
+            x*=float(options['xscale'])
+            y*=float(options['yscale'])
+            xmin, xmax=(np.min([l,r])*float(options['xscale']),
+                        np.max([l,r])*float(options['xscale']))
+            ymin, ymax=(np.min([b,t])*float(options['yscale']),
+                        np.max([b,t])*float(options['yscale']))
+            plt.plot(x,
+                     y,
+                     options.pop('marker'),
+                     markersize=options['markersize'],
+                     linewidth=options['linewidth'],
+                     color=options['color'])
             plt.xlim([xmin, xmax])
             plt.ylim([ymin, ymax])
             plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
 
+class ColorPlotOption(QLabel):
+    
+    def __init__(self, parent):
+        super().__init__()
+        self.parent=parent
+        self.setAutoFillBackground(True)
+    
+    def get_color(self):
+        return self.color.name()
+        
+    def set_color(self, color):
+        self.color  = QtGui.QColor(color)
+        values = "{r}, {g}, {b}, {a}".format(r = self.color.red(),
+                                             g = self.color.green(),
+                                             b = self.color.blue(),
+                                             a = self.color.alpha()
+                                             )
+        self.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
+    
+    def mouseDoubleClickEvent(self, event):
+        self.choose_color()
+        
+    def choose_color(self):
+        self.dialog=QColorDialog(self)
+        self.dialog.setOption(QColorDialog.ShowAlphaChannel)
+        self.dialog.colorSelected.connect(self.new_color)
+        self.dialog.exec_()
+    
+    def new_color(self, color):
+        self.set_color(color.name())
+        self.parent.elements['color'][1]=color.name()
+        
+class PlotFigureOptionButton(QPushButton):
+    
+    def __init__(self, parent):
+        super().__init__()
+        self.parent=parent
+        self.setText('Plot Figure options')
+        self.elements=dict({'marker':[QComboBox,'-'],
+                           'linewidth':[QLineEdit,'2'],
+                           'markersize':[QLineEdit,'1'],
+                           'xscale':[QLineEdit,'1'],
+                           'yscale':[QLineEdit,'1'],
+                           'xlabel':[QLineEdit,'Time (s)'],
+                           'ylabel':[QLineEdit,'Value (a.u.)'],
+                           'color':[ColorPlotOption,'#921515']})
+        self.widgets=dict().fromkeys(self.elements.keys())
+        self.marker_dict=dict({'.':0,
+                               '-':1})
+        self.clicked.connect(self.action)
+    
+    def action(self):
+        self.option_window=QWidget()
+        self.layout=QGridLayout()
+        self.option_window.setLayout(self.layout)
+        for i, (key, val) in enumerate(self.elements.items()):
+            self.widgets[key]=val[0](self)
+            self.layout.addWidget(self.widgets[key] ,i , 0)
+            self.layout.addWidget(QLabel(key),i , 1)
+            if key=='marker':
+                self.widgets[key].addItems(['.', '-'])
+        self.set_default_values()
+        self.confirm_button=QPushButton('confirm')
+        N=len(self.elements.keys())
+        self.layout.addWidget(self.confirm_button, N, 0)
+        self.confirm_button.clicked.connect(self.confirm)
+        self.option_window.show()
+    
+    def confirm(self):
+        for i, (key, val) in enumerate(self.elements.items()):
+            if val[0]==QLineEdit:
+                self.elements[key][1]=self.widgets[key].text()
+            elif val[0]==QComboBox:
+                self.elements[key][1]=self.widgets[key].currentText()
+        self.option_window.close()
+    
+    def set_default_values(self):
+        marker_index=self.marker_dict[self.elements['marker'][1]]
+        self.widgets['marker'].setCurrentIndex(marker_index)
+        self.widgets['color'].set_color(self.elements['color'][1])
+        for key, val in self.elements.items():
+            if val[0]== QLineEdit:
+                self.widgets[key].setText(val[1])
+    
+    def get_values(self):
+        res=dict()
+        for key, val in self.elements.items():
+            res[key]=val[1]
+        return res
+        
 class FitButton(QPushButton):
     
     def __init__(self, treewidget, plotwidget):
@@ -664,44 +779,135 @@ class QTreeContextMenu(QMenu):
             
 class QParamsContextMenu(QMenu):
     
-    def __init__(self, point, window):
+    def __init__(self, point, window, current_param):
         super().__init__()
         self.window=window
         self.add_param_action=self.addAction("Add param")
         self.setVisible(True)
+        self.current_param=current_param
+        if self.current_param is not None:
+            self.delete_param_action=self.addAction("Delete param")
         self.show()
         self.window_position=self.window.geometry()
         #self.header_position=self.item.treeWidget().header().geometry()
-        self.setFixedSize(100, 25)
+        self.setFixedSize(self.sizeHint())
         self.setGeometry(self.window_position.
                          translated(point)
                          .translated(self.window.param_widget.geometry().topLeft()))
+        self.add_param_action.triggered.connect(self.add_param_menu)
+        if self.current_param is not None:
+            self.delete_param_action.triggered.connect(self.delete_param_menu)
+    
+    def add_param_menu(self):
+        if hasattr(self.window.tree_widget, 'active_item'):
+            item = self.window.tree_widget.active_item.data(0,0)
+            if item is not None:
+                self.add_param_window=NewParamWindow(self)
+    
+    def delete_param_menu(self):
+        db=SQLDatabase()
+        db.remove_param(self.window.tree_widget.active_item.data(0,0),
+                         self.current_param)
+        self.window.param_widget.actualize()
+        self.close()
+    
+    def add_param(self, *args):
+        if len(args)==1:
+            name, value=args[0], 0
+        else:
+            name, value=args
+        kwargs=dict({name:value})
+        db=SQLDatabase()
+        db.update_params(self.window.tree_widget.active_item.data(0,0),
+                         **kwargs)
+        self.window.param_widget.actualize()
+        self.close()
+                
+
+class NewParamWindow(QWidget):
+    
+    def __init__(self, parent):
+        super().__init__()
+        self.setWindowTitle('Add a parameter')
+        self.parent=parent
+        self.global_layout=QHBoxLayout()
+        self.setLayout(self.global_layout)
+        self.global_layout.addWidget(QLabel('Name'))
+        self.name_edit=QLineEdit()
+        self.global_layout.addWidget(self.name_edit)
+        self.global_layout.addWidget(QLabel('Value'))
+        self.value_edit=QLineEdit()
+        self.validate_button=QPushButton("Validate")
+        self.global_layout.addWidget(self.value_edit)
+        self.global_layout.addWidget(self.validate_button)
+        self.validate_button.clicked.connect(self.validate)
+        self.show()
+    
+    def keyPressEvent(self, event):
+        if event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
+            self.validate()
+    
+    def validate(self):
+        name=self.name_edit.text()
+        value=self.value_edit.text()
+        self.parent.add_param(name, value)
+        self.close()
+    
 
 class ParamWidget(QTableWidget):
     
     def __init__(self, layout):
         super().__init__()
+        self.setMouseTracking(True);
+        self.viewport().setMouseTracking(True);
         self.layout=layout
         self.setColumnCount(2)
         self.setHorizontalHeaderLabels(['Param', 'Value'])
         self.verticalHeader().setVisible(False)
         self.setMaximumWidth(300)
-        #self.itemChanged.connect(self.item_changed)
         self.clicked_item=None
         self.previous_content=None
-        #self.itemClicked.connect(self.item_clicked)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
+        self.current_param=None
+        self.cellEntered.connect(self.cellEnteredSlot)
+        self.cellChanged.connect(self.cellChangedSlot)
+    
+    def cellEnteredSlot(self, row, column):
+        self.current_param=self.item(row, 0).text()
+    
+    def cellChangedSlot(self, row, column):
+        print('changed cell in {:} {:}'.format(self.item(row, 0).text(),
+                                    self.item(row, 1).text()))
+        if column==1:
+            new_param=dict({self.item(row, 0).text():
+                            self.item(row, 1).text()})
+        else:
+            new_param=dict()
+            for row in range(self.rowCount()):
+                new_param[self.item(row, 0).text()]=self.item(row, 1).text()
+        item = self.window().tree_widget.active_item
+        if item is not None:
+            db=SQLDatabase()
+            db.update_params(item.data(0,0),
+                             **new_param)
+            self.window().param_widget.actualize()
     
     def RightClickMenu(self, point):
-        self.contextMenu=QParamsContextMenu(point, self.window())
+        self.contextMenu=QParamsContextMenu(point, self.window(),
+                                            self.current_param)
     
-    def actualize(self, params):
+    def actualize(self, params=None):
+        self.cellChanged.disconnect()
         item = self.window().tree_widget.active_item
         if item is not None:
             self.clear()
             self.setHorizontalHeaderLabels(['Param', 'Value'])
+            if params is None:
+                params=SQLDatabase().get_params(item.data(0,0))
+                if 'comment' in params.keys():
+                    params.pop('comment')
             self.setRowCount(len(params.keys()))
             for i,(k, v) in enumerate(params.items()):
                 key = QTableWidgetItem()
@@ -710,6 +916,7 @@ class ParamWidget(QTableWidget):
                 value = QTableWidgetItem()
                 value.setText(str(v))
                 self.setItem(i,1,value)
+        self.cellChanged.connect(self.cellChangedSlot)
     
     def mousePressEvent(self, event):
         if event.button()==QtCore.Qt.RightButton:
@@ -720,6 +927,7 @@ class ParamWidget(QTableWidget):
                     pass
     
     def contextMenuEvent(self, event):
+        print('yolo')
         current_id=self.window().tree_widget.active_item.data(0,0)
         if current_id is not None:
             self.menu = QMenu(self)

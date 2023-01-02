@@ -6,5 +6,4 @@ curve_storage/gui.py
 curve_storage.egg-info/PKG-INFO
 curve_storage.egg-info/SOURCES.txt
 curve_storage.egg-info/dependency_links.txt
-curve_storage.egg-info/requires.txt
 curve_storage.egg-info/top_level.txt
