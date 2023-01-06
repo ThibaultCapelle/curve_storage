@@ -3,12 +3,16 @@ import numpy as np
 import h5py, sys
 from psycopg2 import sql, connect, InterfaceError
 from contextlib import contextmanager
-from PyQt5.QtWidgets import QFileDialog, QApplication
+from PyQt5.QtWidgets import (QFileDialog, QApplication, QWidget, 
+                             QLineEdit, QVBoxLayout, QLabel,
+                             QPushButton, QCalendarWidget)
 import PyQt5.QtCore as QtCore
+from PyQt5.QtGui import QTextCharFormat, QPalette
 
 DATABASE_NAME='postgres'
 USER='postgres'
 DATABASE_HOST=r'quarpi.qopt.nbi.dk'
+PORT='5432'
 if not sys.platform=='linux':
     if 'USERPROFILE' in os.environ.keys():
         ROOT=os.environ['USERPROFILE']
@@ -67,7 +71,111 @@ class Filter(sql.Composed):
                               junction, 
                               self.item1,
                               end])
+class Calendar(QCalendarWidget):
+    
+    
+    def __init__(self):
+        super().__init__()
+        self.from_date=None
+        self.to_date=None
+        self.highlighter=QTextCharFormat()
+        self.highlighter.setBackground(
+            self.palette().brush(QPalette.Highlight))
+        self.highlighter.setForeground(
+            self.palette().brush(QPalette.HighlightedText))
+        self.keylist=[]
+        self.clicked.connect(self.select_Date_range)
+        
+    def keyPressEvent(self, event):
+        astr = event.key()
+        self.keylist.append(astr)
 
+    def keyReleaseEvent(self, event):
+        del self.keylist[-1]
+    
+    def select_Date_range(self, date_value):
+        self.highlight_range(QTextCharFormat())
+        if ((QtCore.Qt.Key_Shift in self.keylist) & 
+            (self.from_date is not None)):
+            self.to_date=date_value
+            self.highlight_range(self.highlighter)
+        else:
+            self.from_date=date_value
+            self.to_date=None
+        
+    def highlight_range(self, format):
+        if (self.from_date is not None and 
+            self.to_date is not None):
+            d1=min([self.from_date, self.to_date])
+            d2=max([self.from_date, self.to_date])
+            while (d1<=d2):
+                self.setDateTextFormat(d1, format)
+                d1=d1.addDays(1)
+                
+        
+class CopyToLocalWidget(QWidget):
+
+    def __init__(self):
+        super().__init__()
+        self.layout=QVBoxLayout(self)
+        self.setLayout(self.layout)
+        self.layout.addWidget(QLabel('source host'))
+        self.source_host=QLineEdit(DATABASE_HOST)
+        self.layout.addWidget(self.source_host)
+        self.layout.addWidget(QLabel('source user'))
+        self.source_user=QLineEdit(USER)
+        self.layout.addWidget(self.source_user)
+        self.layout.addWidget(QLabel('source port'))
+        self.source_port=QLineEdit(PORT)
+        self.layout.addWidget(self.source_port)
+        self.target_host=QLineEdit('localhost')
+        self.layout.addWidget(QLabel('source database'))
+        self.source_database=QLineEdit(DATABASE_NAME)
+        self.layout.addWidget(self.source_database)
+        self.layout.addWidget(QLabel('source password'))
+        self.source_password=QLineEdit()
+        self.source_password.setEchoMode(QLineEdit.Password)
+        self.layout.addWidget(self.source_password)
+        self.layout.addWidget(QLabel('target host'))
+        self.layout.addWidget(self.target_host)
+        self.layout.addWidget(QLabel('target user'))
+        self.target_user=QLineEdit(USER)
+        self.layout.addWidget(self.target_user)
+        self.layout.addWidget(QLabel('target port'))
+        self.target_port=QLineEdit(PORT)
+        self.layout.addWidget(self.target_port)
+        self.layout.addWidget(QLabel('target database'))
+        self.target_database=QLineEdit(DATABASE_NAME)
+        self.layout.addWidget(self.target_database)
+        self.layout.addWidget(QLabel('target password'))
+        self.target_password=QLineEdit()
+        self.target_password.setEchoMode(QLineEdit.Password)
+        self.layout.addWidget(self.target_password)
+        self.layout.addWidget(QLabel('set period'))
+        self.calendar=Calendar()
+        self.layout.addWidget(self.calendar)
+        self.accept=QPushButton('Confirm transfer')
+        self.layout.addWidget(self.accept)
+        self.accept.clicked.connect(self.confirm)
+        self.show()
+    
+    def confirm(self):
+        self.db1=SQLDatabase(db=connect(host=self.source_host.text(),
+                         database=self.source_database.text(),
+                         user=self.source_user.text(),
+                         password=self.source_password.text()))
+        print(self.db1.get_n_keys())
+        self.db1.close()
+        self.db2=SQLDatabase(db=connect(host=self.target_host.text(),
+                         database=self.target_database.text(),
+                         user=self.target_user.text(),
+                         password=self.target_password.text()))
+        print(self.db2.get_n_keys())
+        self.db2.close()
+        self.close()
+        
+        
+        
 class SQLDatabase():
     
     first_instance = True
@@ -91,21 +199,38 @@ class SQLDatabase():
         DATABASE_HOST=res['DATABASE_HOST']
         DATABASE_NAME = res['DATABASE_NAME']
         USER = res['USER']
+        PASSWORD = res['PASSWORD']
     
-    def __init__(self, data_location=DATA_LOCATION):
-        if not self.__class__.first_instance:
-            self.db=self.__class__.instances[0]
+    def __init__(self, data_location=DATA_LOCATION, db=None):
+        if db is None:
+            if not self.__class__.first_instance:
+                self.db=self.__class__.instances[0]
+            else:
+                self.__class__.first_instance=False
+                self.db=connect(host=SQLDatabase.DATABASE_HOST,
+                                 database=SQLDatabase.DATABASE_NAME,
+                                 user=SQLDatabase.USER,
+                                 password=SQLDatabase.PASSWORD)
+                if not self.is_table_created():
+                    self.create_table()
+                self.__class__.instances.append(self.db)
         else:
-            self.__class__.first_instance=False
-            self.db=connect(host=SQLDatabase.DATABASE_HOST,
-                             database=SQLDatabase.DATABASE_NAME,
-                             user=SQLDatabase.USER)
+            self.db=db
+            self.__class__.instances = [self.db]
             if not self.is_table_created():
-                self.create_table()
-            self.__class__.instances.append(self.db)
+                    self.create_table()
+            
         self.data_location=data_location
-
     
+    def create_local_copy(self):
+        '''data_location=QFileDialog.getExistingDirectory(
+            caption='select the root directory of the data')
+        print(data_location)'''
+        app = QtCore.QCoreApplication.instance()
+        app.setQuitOnLastWindowClosed(True)
+        copy_widget=CopyToLocalWidget()
+        app.exec_()
+        
     def get_all_ids(self):
         if self.is_table_created():
             self.get_cursor()
@@ -198,8 +323,9 @@ class SQLDatabase():
             self.cursor=self.db.cursor()
     
     def get_n_keys(self):
-        keys = self.get_all_ids()
-        return len(keys)
+        self.get_cursor()
+        self.cursor.execute('''SELECT count(id) FROM data;''')
+        return self.cursor.fetchall()[0][0]
         
     def is_table_created(self):
         with transaction(self.db):
@@ -220,7 +346,8 @@ class SQLDatabase():
             self.get_cursor()
             self.cursor.execute('''
                            CREATE TABLE data(id INTEGER PRIMARY KEY, name TEXT,
-                           date FLOAT, childs TEXT, parent INTEGER, project text);
+                           date FLOAT, childs TEXT, parent INTEGER,
+                           project text, sample text);
                            ''')
         
     
@@ -796,15 +923,9 @@ if __name__=='__main__':
     if not '.database' in os.listdir():
         os.mkdir('.database')
     os.chdir('.database')'''
-    database=SQLDatabase()
-    '''curve=Curve([0,1,2,3], [1,2,3,4])
-    curve.params['hello']='bonjour'
-    curve.save()
-    curve_id=curve.id
-    retrieved_curve=database.get_curve(curve_id)
-    retrieved_curve=database.get_curve(curve_id)
-    retrieved_curve.delete()
-    database.close()'''
+    db=SQLDatabase()
+    db.create_local_copy()
+    
 
 
 
