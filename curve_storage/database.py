@@ -1,6 +1,7 @@
 import os, json, time, shutil
 import numpy as np
 import h5py, sys
+import shutil
 from psycopg2 import sql, connect, InterfaceError
 from contextlib import contextmanager
 from PyQt5.QtWidgets import (QFileDialog, QApplication, QWidget, 
@@ -199,24 +200,31 @@ class CopyToLocalWidget(QWidget):
                          user=self.target_user.text(),
                          password=self.target_password.text()),
                              data_location=self.target_datapath.text())
+        print('transferring the database...')
         self.db2.add_entry(res)
+        print('database is transferred.')
+        N=len(res)
+        print('transferring the data, {:} curves to consider'.format(N))
+        for i, item in enumerate(res):
+            if i%10==0:
+                print('{:.2f}% done'.format(float(i)*100/N))
+            curve_id=int(item[0])
+            date=item[2]
+            filename='{:}.h5'.format(curve_id)
+            dir1=self.db1.get_folder_from_date(date)
+            dir2=self.db2.get_folder_from_date(date)
+            shutil.copy(os.path.join(dir1,
+                                     filename),
+                        os.path.join(dir2,
+                                     filename))
+            if str(curve_id) in os.listdir(dir1):
+                shutil.copytree(os.path.join(dir1,
+                                     str(curve_id)),
+                                os.path.join(dir2,
+                                     str(curve_id)))
         self.db1.close()
         self.db2.close()
-        1/0
-        '''
-        self.db1=SQLDatabase(db=connect(host=self.source_host.text(),
-                         database=self.source_database.text(),
-                         user=self.source_user.text(),
-                         password=self.source_password.text()))
-        print(self.db1.get_n_keys())
-        self.db1.close()
-        self.db2=SQLDatabase(db=connect(host=self.target_host.text(),
-                         database=self.target_database.text(),
-                         user=self.target_user.text(),
-                         password=self.target_password.text()))
-        print(self.db2.get_n_keys())
-        self.db2.close()
-        self.close()'''
+        self.close()
         
         
         

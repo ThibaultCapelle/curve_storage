@@ -708,6 +708,8 @@ class SaveFitButton(QPushButton):
         params=dict({k: v for k,v in zip(keys, fitparams)})
         params_cov=dict({k+'_std': np.sqrt(fitbutton.cov_x[i][i]) for i, k in\
                          enumerate(keys)})
+        curve.params.update(params)
+        curve.save()
         fitcurve=Curve(x,y, name=fitfunction, **params, **params_cov)
         fitcurve.move(curve)
 
