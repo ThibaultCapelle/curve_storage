@@ -438,7 +438,10 @@ class SQLDatabase():
                     self.get_cursor()
                     args_str = b','.join(self.cursor.mogrify("(%s,%s,%s,%s,%s,%s,%s)", x) for x in curve)
                     self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project, sample)
-                                        VALUES ''' + args_str.decode()) 
+                                        VALUES ''' + args_str.decode() + 
+                                        ''' ON CONFLICT (id) DO UPDATE SET name=data.name'''+
+                                        ''', parent=data.parent, childs=data.childs,'''+
+                                        ''' project=data.project, sample=data.sample;''') 
         
     
     def extract_dictionary(self, res, obj):
