@@ -5,7 +5,7 @@ from psycopg2 import sql, connect, InterfaceError
 from contextlib import contextmanager
 from PyQt5.QtWidgets import (QFileDialog, QApplication, QWidget, 
                              QLineEdit, QVBoxLayout, QLabel,
-                             QPushButton, QCalendarWidget)
+                             QPushButton, QCalendarWidget, QHBoxLayout)
 import PyQt5.QtCore as QtCore
 from PyQt5.QtGui import QTextCharFormat, QPalette
 
@@ -136,6 +136,14 @@ class CopyToLocalWidget(QWidget):
         self.source_password=QLineEdit()
         self.source_password.setEchoMode(QLineEdit.Password)
         self.layout.addWidget(self.source_password)
+        self.layout.addWidget(QLabel('set source data path'))
+        self.source_datapath=QLineEdit()
+        self.select_source_datapath=QPushButton('Browse')
+        self.select_source_datapath_layout=QHBoxLayout()
+        self.select_source_datapath_layout.addWidget(self.source_datapath)
+        self.select_source_datapath_layout.addWidget(self.select_source_datapath)
+        self.select_source_datapath.clicked.connect(self.browse_source_datapath)
+        self.layout.addLayout(self.select_source_datapath_layout)
         self.layout.addWidget(QLabel('target host'))
         self.layout.addWidget(self.target_host)
         self.layout.addWidget(QLabel('target user'))
@@ -151,6 +159,14 @@ class CopyToLocalWidget(QWidget):
         self.target_password=QLineEdit()
         self.target_password.setEchoMode(QLineEdit.Password)
         self.layout.addWidget(self.target_password)
+        self.layout.addWidget(QLabel('set target data path'))
+        self.target_datapath=QLineEdit()
+        self.select_target_datapath=QPushButton('Browse')
+        self.select_target_datapath_layout=QHBoxLayout()
+        self.select_target_datapath_layout.addWidget(self.target_datapath)
+        self.select_target_datapath_layout.addWidget(self.select_target_datapath)
+        self.select_target_datapath.clicked.connect(self.browse_target_datapath)
+        self.layout.addLayout(self.select_target_datapath_layout)
         self.layout.addWidget(QLabel('set period'))
         self.calendar=Calendar()
         self.layout.addWidget(self.calendar)
@@ -159,7 +175,35 @@ class CopyToLocalWidget(QWidget):
         self.accept.clicked.connect(self.confirm)
         self.show()
     
+    def browse_target_datapath(self):
+        data_location=QFileDialog.getExistingDirectory(
+            caption='select the target root directory of the data')
+        self.target_datapath.setText(str(data_location))
+    
+    def browse_source_datapath(self):
+        data_location=QFileDialog.getExistingDirectory(
+            caption='select the source root directory of the data')
+        self.source_datapath.setText(str(data_location))
+    
     def confirm(self):
+        t_ini=self.calendar.from_date.startOfDay().toSecsSinceEpoch()
+        t_end=self.calendar.to_date.startOfDay().toSecsSinceEpoch()
+        self.db1=SQLDatabase(db=connect(host=self.source_host.text(),
+                         database=self.source_database.text(),
+                         user=self.source_user.text(),
+                         password=self.source_password.text()),
+                             data_location=self.source_datapath.text())
+        res=self.db1.get_all_data_in_period(t_ini, t_end)
+        self.db2=SQLDatabase(db=connect(host=self.target_host.text(),
+                         database=self.target_database.text(),
+                         user=self.target_user.text(),
+                         password=self.target_password.text()),
+                             data_location=self.target_datapath.text())
+        self.db2.add_entry(res)
+        self.db1.close()
+        self.db2.close()
+        1/0
+        '''
         self.db1=SQLDatabase(db=connect(host=self.source_host.text(),
                          database=self.source_database.text(),
                          user=self.source_user.text(),
@@ -172,7 +216,7 @@ class CopyToLocalWidget(QWidget):
                          password=self.target_password.text()))
         print(self.db2.get_n_keys())
         self.db2.close()
-        self.close()
+        self.close()'''
         
         
         
@@ -185,6 +229,7 @@ class SQLDatabase():
         app = QtCore.QCoreApplication.instance()
         if app is None:
             app = QApplication(sys.argv)
+        app.setQuitOnLastWindowClosed(True)
         DATA_LOCATION=QFileDialog.getExistingDirectory(caption='select the root directory of the data')
         app.exec_()
         with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'w') as f:
@@ -230,7 +275,13 @@ class SQLDatabase():
         app.setQuitOnLastWindowClosed(True)
         copy_widget=CopyToLocalWidget()
         app.exec_()
-        
+    
+    def get_all_data_in_period(self, t_ini, t_end):
+        self.get_cursor()
+        self.cursor.execute('''SELECT id, name, date, childs, parent, project, sample FROM data WHERE date>%s AND date<%s;''',
+                            (t_ini, t_end,))
+        return self.cursor.fetchall()
+    
     def get_all_ids(self):
         if self.is_table_created():
             self.get_cursor()
@@ -358,28 +409,37 @@ class SQLDatabase():
             self.update_entry(curve)
         
     def add_entry(self, curve):
-        assert curve.id is None
-        curve_id = self.get_new_id()
-        curve.id=curve_id
-        try:
-            curve.date
-        except AttributeError:
-            curve.date=time.time()
-        if curve.parent is None:
-            curve.parent=curve.id
-            with transaction(self.db):
-                self.get_cursor()
-                self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project, sample)
-                      VALUES(%s,%s,%s,%s,%s,%s,%s);''',
-                      (int(curve_id),
-                      curve.name,
-                      float(curve.date),
-                      json.dumps(curve.childs),
-                      int(curve.parent),
-                      curve.project,
-                      curve.sample))
-        curve.directory = self.get_folder_from_date(curve.date)
-        curve.parent = curve_id
+        if isinstance(curve, Curve):
+            assert curve.id is None
+            curve_id = self.get_new_id()
+            curve.id=curve_id
+            try:
+                curve.date
+            except AttributeError:
+                curve.date=time.time()
+            if curve.parent is None:
+                curve.parent=curve.id
+                with transaction(self.db):
+                    self.get_cursor()
+                    self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project, sample)
+                          VALUES(%s,%s,%s,%s,%s,%s,%s);''',
+                          (int(curve_id),
+                          curve.name,
+                          float(curve.date),
+                          json.dumps(curve.childs),
+                          int(curve.parent),
+                          curve.project,
+                          curve.sample))
+            curve.directory = self.get_folder_from_date(curve.date)
+            curve.parent = curve_id
+        elif isinstance(curve, list):
+            if isinstance(curve[0], tuple):
+                with transaction(self.db):
+                    self.get_cursor()
+                    args_str = b','.join(self.cursor.mogrify("(%s,%s,%s,%s,%s,%s,%s)", x) for x in curve)
+                    self.cursor.execute('''INSERT INTO data(id, name, date, childs, parent, project, sample)
+                                        VALUES ''' + args_str.decode()) 
+        
     
     def extract_dictionary(self, res, obj):
         for key, val in obj.items():
