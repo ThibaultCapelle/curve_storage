@@ -4,7 +4,7 @@ import h5py, sys
 import shutil
 from psycopg2 import sql, connect, InterfaceError
 from contextlib import contextmanager
-from PyQt5.QtWidgets import (QFileDialog, QApplication, QWidget, 
+from PyQt5.QtWidgets import (QFileDialog, QApplication, QWidget, QCheckBox,
                              QLineEdit, QVBoxLayout, QLabel,
                              QPushButton, QCalendarWidget, QHBoxLayout)
 import PyQt5.QtCore as QtCore
@@ -173,6 +173,9 @@ class CopyToLocalWidget(QWidget):
         self.layout.addWidget(QLabel('set period'))
         self.calendar=Calendar()
         self.layout.addWidget(self.calendar)
+        self.reload=QCheckBox('transfer again the data already here?')
+        self.reload.setChecked(False)
+        self.layout.addWidget(self.reload)
         self.accept=QPushButton('Confirm transfer')
         self.layout.addWidget(self.accept)
         self.accept.clicked.connect(self.confirm)
@@ -188,8 +191,9 @@ class CopyToLocalWidget(QWidget):
         self.source_datapath.setText(str(data_location))
     
     def confirm(self):
+        print(self.reload.isChecked())
         t_ini=self.calendar.from_date.startOfDay().toSecsSinceEpoch()
-        t_end=self.calendar.to_date.startOfDay().toSecsSinceEpoch()
+        t_end=self.calendar.to_date.endOfDay().toSecsSinceEpoch()
         self.db1=SQLDatabase(db=connect(host=self.source_host.text(),
                          database=self.source_database.text(),
                          user=self.source_user.text(),
@@ -210,19 +214,23 @@ class CopyToLocalWidget(QWidget):
             if i%10==0:
                 print('{:.2f}% done'.format(float(i)*100/N))
             curve_id=int(item[0])
+            
             date=item[2]
             filename='{:}.h5'.format(curve_id)
             dir1=self.db1.get_folder_from_date(date)
             dir2=self.db2.get_folder_from_date(date)
-            shutil.copy(os.path.join(dir1,
-                                     filename),
-                        os.path.join(dir2,
-                                     filename))
-            if str(curve_id) in os.listdir(dir1):
-                shutil.copytree(os.path.join(dir1,
-                                     str(curve_id)),
-                                os.path.join(dir2,
-                                     str(curve_id)))
+            if self.reload.isChecked() or not os.path.exists(
+                    os.path.join(dir2,
+                                 filename)):
+                shutil.copy(os.path.join(dir1,
+                                         filename),
+                            os.path.join(dir2,
+                                         filename))
+                if str(curve_id) in os.listdir(dir1):
+                    shutil.copytree(os.path.join(dir1,
+                                         str(curve_id)),
+                                    os.path.join(dir2,
+                                         str(curve_id)))
         self.db1.close()
         self.db2.close()
         self.close()
@@ -1053,7 +1061,7 @@ class Test(QWidget):
 if __name__=='__main__':
     
     db=SQLDatabase()
-    db.get_n_keys()
+    db.create_local_copy()
 
 
 
