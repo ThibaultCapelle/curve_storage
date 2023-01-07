@@ -1126,7 +1126,9 @@ class PlotWidget(pg.PlotWidget):
         if item is not None:
             self.getPlotItem().enableAutoRange(enable=True)
             curve_id = int(item.data(0,0))
+            print(curve_id)
             date = item.data(2,0)
+            print(PlotWidget.get_folder_from_date(date))
             folder=PlotWidget.get_folder_from_date(date)
             x,y,params=PlotWidget.get_data_and_params_from_date_and_id(date, curve_id)
             y_r, y_i, y_abs, y_angle=(np.real(y), np.imag(y), np.abs(y), np.angle(y))
@@ -1208,6 +1210,7 @@ class PlotWidget(pg.PlotWidget):
 app = QtCore.QCoreApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
+app.setQuitOnLastWindowClosed(True)
 window = WindowWidget()
 app.exec_()
 

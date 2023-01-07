@@ -19,6 +19,8 @@ if not sys.platform=='linux':
         ROOT=os.environ['USERPROFILE']
     elif sys.platform=='darwin':
         ROOT=os.environ['HOME']
+    elif sys.platform=='linux2':
+        ROOT=os.environ['HOME']
     else:
         ROOT=os.path.join(os.environ['HOMEDRIVE'], os.environ['HOMEPATH'])
 
@@ -174,7 +176,6 @@ class CopyToLocalWidget(QWidget):
         self.accept=QPushButton('Confirm transfer')
         self.layout.addWidget(self.accept)
         self.accept.clicked.connect(self.confirm)
-        self.show()
     
     def browse_target_datapath(self):
         data_location=QFileDialog.getExistingDirectory(
@@ -225,9 +226,57 @@ class CopyToLocalWidget(QWidget):
         self.db1.close()
         self.db2.close()
         self.close()
-        
-        
-        
+    
+class setConfigWidget(QWidget):
+
+    def __init__(self):
+        super().__init__()
+        self.layout=QVBoxLayout(self)
+        self.setLayout(self.layout)
+        self.layout.addWidget(QLabel('host'))
+        self.host=QLineEdit(DATABASE_HOST)
+        self.layout.addWidget(self.host)
+        self.layout.addWidget(QLabel('user'))
+        self.user=QLineEdit(USER)
+        self.layout.addWidget(self.user)
+        self.layout.addWidget(QLabel('port'))
+        self.port=QLineEdit(PORT)
+        self.layout.addWidget(self.port)
+        self.layout.addWidget(QLabel('database'))
+        self.database=QLineEdit(DATABASE_NAME)
+        self.layout.addWidget(self.database)
+        self.layout.addWidget(QLabel('source password'))
+        self.password=QLineEdit()
+        self.password.setEchoMode(QLineEdit.Password)
+        self.layout.addWidget(self.password)
+        self.layout.addWidget(QLabel('set data path'))
+        self.datapath=QLineEdit()
+        self.select_datapath=QPushButton('Browse')
+        self.select_datapath_layout=QHBoxLayout()
+        self.select_datapath_layout.addWidget(self.datapath)
+        self.select_datapath_layout.addWidget(self.select_datapath)
+        self.select_datapath.clicked.connect(self.browse_datapath)
+        self.layout.addLayout(self.select_datapath_layout)
+        self.accept=QPushButton('Confirm')
+        self.layout.addWidget(self.accept)
+        self.accept.clicked.connect(self.confirm)
+    
+    def browse_datapath(self):
+        data_location=QFileDialog.getExistingDirectory(
+            caption='select the root directory of the data')
+        self.datapath.setText(str(data_location))
+    
+    def confirm(self):
+        with open(os.path.join(ROOT, 'database_config.json'), 'w') as f:
+            res=dict({'DATA_LOCATION':self.datapath.text(),
+                      'DATABASE_HOST':self.host.text(),
+                      'DATABASE_NAME':self.database.text(),
+                      'USER':self.user.text(),
+                      'PASSWORD':self.password.text(),
+                      'PORT':self.port.text()})
+            json.dump(res, f)
+        self.close()
+     
 class SQLDatabase():
     
     first_instance = True
@@ -244,7 +293,9 @@ class SQLDatabase():
             res=dict({'DATA_LOCATION':DATA_LOCATION,
                       'DATABASE_HOST':DATABASE_HOST,
                       'DATABASE_NAME':DATABASE_NAME,
-                      'USER':USER})
+                      'USER':USER,
+                      'PORT':5432,
+                      'PASSWORD':''})
             json.dump(res, f)
     with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'r') as f:
         res=json.load(f)
@@ -253,6 +304,15 @@ class SQLDatabase():
         DATABASE_NAME = res['DATABASE_NAME']
         USER = res['USER']
         PASSWORD = res['PASSWORD']
+    
+    @staticmethod
+    def set_config():
+        
+        app = QtCore.QCoreApplication.instance()
+        app.setQuitOnLastWindowClosed(True)
+        widget=setConfigWidget()
+        widget.show()
+        app.exec_()
     
     def __init__(self, data_location=DATA_LOCATION, db=None):
         if db is None:
@@ -276,12 +336,12 @@ class SQLDatabase():
         self.data_location=data_location
     
     def create_local_copy(self):
-        '''data_location=QFileDialog.getExistingDirectory(
-            caption='select the root directory of the data')
-        print(data_location)'''
         app = QtCore.QCoreApplication.instance()
+        if app is None:
+           app = QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(True)
-        copy_widget=CopyToLocalWidget()
+        widget=CopyToLocalWidget()
+        widget.show()
         app.exec_()
     
     def get_all_data_in_period(self, t_ini, t_end):
@@ -985,18 +1045,15 @@ class Curve:
     def delete(self):
         self.database.delete_entry(self.id)
 
+class Test(QWidget):
+    
+    def __init__(self):
+        super().__init__()
+        
 if __name__=='__main__':
     
-    '''if sys.platform!='linux':
-        os.chdir(os.environ['HOMEPATH'])
-    else:
-        os.chdir(os.environ['HOME'])
-    if not '.database' in os.listdir():
-        os.mkdir('.database')
-    os.chdir('.database')'''
     db=SQLDatabase()
-    db.create_local_copy()
-    
+    db.get_n_keys()
 
 
 
