@@ -280,12 +280,12 @@ class setConfigWidget(QWidget):
     
     def confirm(self):
         with open(os.path.join(ROOT, 'database_config.json'), 'w') as f:
-            res=dict({'DATA_LOCATION':self.datapath.text(),
-                      'DATABASE_HOST':self.host.text(),
-                      'DATABASE_NAME':self.database.text(),
-                      'USER':self.user.text(),
-                      'PASSWORD':self.password.text(),
-                      'PORT':self.port.text()})
+            res=dict({'data_location':self.datapath.text(),
+                      'database_host':self.host.text(),
+                      'database_name':self.database.text(),
+                      'user':self.user.text(),
+                      'password':self.password.text(),
+                      'port':self.port.text()})
             json.dump(res, f)
         self.close()
      
@@ -306,17 +306,7 @@ class SQLDatabase():
     @staticmethod
     def get_config():
         with open(os.path.join(ROOT, 'database_config.json'), 'r') as f:
-                res=json.load(f)
-                data_location=res['DATA_LOCATION']
-                database_host=res['DATABASE_HOST']
-                database_name = res['DATABASE_NAME']
-                user = res['USER']
-                password = res['PASSWORD']
-        return dict({'data_location':data_location,
-                     'database_host':database_host,
-                     'database_name':database_name,
-                     'user':user,
-                     'password':password})
+            return json.load(f)
     
     def __init__(self, data_location=None, db=None):
         if db is None:
