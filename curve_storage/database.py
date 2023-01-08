@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (QFileDialog, QApplication, QWidget, QCheckBox,
                              QPushButton, QCalendarWidget, QHBoxLayout)
 import PyQt5.QtCore as QtCore
 from PyQt5.QtGui import QTextCharFormat, QPalette
+import distutils
 
 DATABASE_NAME='postgres'
 USER='postgres'
@@ -116,10 +117,11 @@ class Calendar(QCalendarWidget):
                 d1=d1.addDays(1)
                 
         
-class CopyToLocalWidget(QWidget):
+class CopyDatabaseWidget(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setWindowTitle('Database Copy')
         self.layout=QVBoxLayout(self)
         self.setLayout(self.layout)
         self.layout.addWidget(QLabel('source host'))
@@ -191,7 +193,6 @@ class CopyToLocalWidget(QWidget):
         self.source_datapath.setText(str(data_location))
     
     def confirm(self):
-        print(self.reload.isChecked())
         t_ini=self.calendar.from_date.startOfDay().toSecsSinceEpoch()
         t_end=self.calendar.to_date.endOfDay().toSecsSinceEpoch()
         self.db1=SQLDatabase(db=connect(host=self.source_host.text(),
@@ -222,15 +223,17 @@ class CopyToLocalWidget(QWidget):
             if self.reload.isChecked() or not os.path.exists(
                     os.path.join(dir2,
                                  filename)):
-                shutil.copy(os.path.join(dir1,
+                distutils.file_util.copy_file(os.path.join(dir1,
                                          filename),
                             os.path.join(dir2,
-                                         filename))
+                                         filename),
+                            update=1)
                 if str(curve_id) in os.listdir(dir1):
-                    shutil.copytree(os.path.join(dir1,
+                    distutils.dir_util.copy_tree(os.path.join(dir1,
                                          str(curve_id)),
                                     os.path.join(dir2,
-                                         str(curve_id)))
+                                         str(curve_id)),
+                                    update=1)
         self.db1.close()
         self.db2.close()
         self.close()
@@ -239,6 +242,7 @@ class setConfigWidget(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setWindowTitle('Database Config')
         self.layout=QVBoxLayout(self)
         self.setLayout(self.layout)
         self.layout.addWidget(QLabel('host'))
@@ -289,29 +293,6 @@ class SQLDatabase():
     
     first_instance = True
     instances = []
-    CONFIG_LOCATION = ROOT
-    if not 'database_config.json' in os.listdir(CONFIG_LOCATION):
-        app = QtCore.QCoreApplication.instance()
-        if app is None:
-            app = QApplication(sys.argv)
-        app.setQuitOnLastWindowClosed(True)
-        DATA_LOCATION=QFileDialog.getExistingDirectory(caption='select the root directory of the data')
-        app.exec_()
-        with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'w') as f:
-            res=dict({'DATA_LOCATION':DATA_LOCATION,
-                      'DATABASE_HOST':DATABASE_HOST,
-                      'DATABASE_NAME':DATABASE_NAME,
-                      'USER':USER,
-                      'PORT':5432,
-                      'PASSWORD':''})
-            json.dump(res, f)
-    with open(os.path.join(CONFIG_LOCATION, 'database_config.json'), 'r') as f:
-        res=json.load(f)
-        DATA_LOCATION=res['DATA_LOCATION']
-        DATABASE_HOST=res['DATABASE_HOST']
-        DATABASE_NAME = res['DATABASE_NAME']
-        USER = res['USER']
-        PASSWORD = res['PASSWORD']
     
     @staticmethod
     def set_config():
@@ -322,33 +303,54 @@ class SQLDatabase():
         widget.show()
         app.exec_()
     
-    def __init__(self, data_location=DATA_LOCATION, db=None):
+    @staticmethod
+    def get_config():
+        with open(os.path.join(ROOT, 'database_config.json'), 'r') as f:
+                res=json.load(f)
+                data_location=res['DATA_LOCATION']
+                database_host=res['DATABASE_HOST']
+                database_name = res['DATABASE_NAME']
+                user = res['USER']
+                password = res['PASSWORD']
+        return dict({'data_location':data_location,
+                     'database_host':database_host,
+                     'database_name':database_name,
+                     'user':user,
+                     'password':password})
+    
+    def __init__(self, data_location=None, db=None):
         if db is None:
+            if not 'database_config.json' in os.listdir(ROOT):
+                SQLDatabase.set_config()
+            config=SQLDatabase.get_config()
+            for k,v in config.items():
+                setattr(self, k, v)
+            
             if not self.__class__.first_instance:
                 self.db=self.__class__.instances[0]
             else:
                 self.__class__.first_instance=False
-                self.db=connect(host=SQLDatabase.DATABASE_HOST,
-                                 database=SQLDatabase.DATABASE_NAME,
-                                 user=SQLDatabase.USER,
-                                 password=SQLDatabase.PASSWORD)
+                self.db=connect(host=self.database_host,
+                                 database=self.database_name,
+                                 user=self.user,
+                                 password=self.password)
                 if not self.is_table_created():
                     self.create_table()
                 self.__class__.instances.append(self.db)
         else:
             self.db=db
+            self.data_location=data_location
             self.__class__.instances = [self.db]
             if not self.is_table_created():
                     self.create_table()
             
-        self.data_location=data_location
     
     def create_local_copy(self):
         app = QtCore.QCoreApplication.instance()
         if app is None:
            app = QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(True)
-        widget=CopyToLocalWidget()
+        widget=CopyDatabaseWidget()
         widget.show()
         app.exec_()
     
@@ -365,19 +367,6 @@ class SQLDatabase():
             return np.array(self.cursor.fetchall()).flatten().tolist()
         else:
             return []
-    
-    def change_data_location(self):
-        app = QtCore.QCoreApplication.instance()
-        if app is None:
-            app = QApplication(sys.argv)
-        DATA_LOCATION=QFileDialog.getExistingDirectory(caption='select the root directory of the data')
-        app.exec_()
-        with open(os.path.join(self.CONFIG_LOCATION, 'database_config.json'), 'w') as f:
-            res=dict({'DATA_LOCATION':DATA_LOCATION,
-                      'DATABASE_HOST':DATABASE_HOST,
-                      'DATABASE_NAME':DATABASE_NAME,
-                      'USER':USER})
-            json.dump(res, f)
     
     def get_one_id(self):
         self.get_cursor()
@@ -443,9 +432,9 @@ class SQLDatabase():
         try:
             self.cursor=self.db.cursor()
         except InterfaceError:
-            self.db=connect(host=SQLDatabase.DATABASE_HOST,
-                             database=SQLDatabase.DATABASE_NAME,
-                             user=SQLDatabase.USER)
+            self.db=connect(host=self.database_host,
+                             database=self.database_name,
+                             user=self.user)
             self.__class__.instances=[self.db]
             self.cursor=self.db.cursor()
     
@@ -795,7 +784,7 @@ class SQLDatabase():
             if str(curve_id) in os.listdir(directory):
                 os.chdir(directory)
                 shutil.rmtree(str(curve_id))
-            while((len(os.listdir(directory))==0)&(directory!=SQLDatabase.DATA_LOCATION)):
+            while((len(os.listdir(directory))==0)&(directory!=self.data_location)):
                 os.rmdir(directory)
                 directory=os.path.split(directory)[0]
             os.chdir(previous_dir)

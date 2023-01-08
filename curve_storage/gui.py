@@ -1160,7 +1160,7 @@ class PlotWidget(pg.PlotWidget):
     @staticmethod
     def get_folder_from_date(date):
         t=time.mktime(time.strptime(date,"%Y/%m/%d %H:%M:%S"))
-        path = os.path.join(SQLDatabase.DATA_LOCATION,
+        path = os.path.join(SQLDatabase.get_config()['data_location'],
                             time.strftime("%Y",time.gmtime(t)),
                             time.strftime("%m",time.gmtime(t)),
                             time.strftime("%d",time.gmtime(t)))
