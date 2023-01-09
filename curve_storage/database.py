@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QFileDialog, QApplication, QWidget, QCheckBox,
                              QPushButton, QCalendarWidget, QHBoxLayout)
 import PyQt5.QtCore as QtCore
 from PyQt5.QtGui import QTextCharFormat, QPalette
-import distutils
+from setuptools import distutils
 
 DATABASE_NAME='postgres'
 USER='postgres'
@@ -182,8 +182,8 @@ class CopyDatabaseWidget(QWidget):
         self.source_datapath.setText(str(data_location))
     
     def confirm(self):
-        t_ini=self.calendar.from_date.startOfDay().toSecsSinceEpoch()
-        t_end=self.calendar.to_date.endOfDay().toSecsSinceEpoch()
+        t_ini=time.mktime(self.calendar.from_date.toPyDate().timetuple())
+        t_end=time.mktime(self.calendar.to_date.toPyDate().timetuple())+3600*24
         self.db1=SQLDatabase(db=connect(host=self.source_host.text(),
                          database=self.source_database.text(),
                          user=self.source_user.text(),
