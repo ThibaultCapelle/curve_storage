@@ -87,7 +87,7 @@ class Fit(FitBase):
     @staticmethod
     def lorentzian(x, params):
         Fit.lorentzian.keys= ['offset', 'x0',
-                              'height_1', 'dx']
+                              'height', 'dx']
         offset, x0, height, dx=params
         # remember np.pi*dx is Gamma_m/2
         return offset + height* (1 + (x-x0)**2/dx**2)**-1
