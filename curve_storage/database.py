@@ -297,6 +297,16 @@ class SQLDatabase():
         with open(os.path.join(ROOT, 'database_config.json'), 'r') as f:
             return json.load(f)
     
+    @staticmethod
+    def create_local_copy():
+        app = QtCore.QCoreApplication.instance()
+        if app is None:
+           app = QApplication(sys.argv)
+        app.setQuitOnLastWindowClosed(True)
+        widget=CopyDatabaseWidget()
+        widget.show()
+        app.exec_()
+    
     def __init__(self, data_location=None, db=None):
         if db is None:
             if not 'database_config.json' in os.listdir(ROOT):
@@ -324,14 +334,7 @@ class SQLDatabase():
                     self.create_table()
             
     
-    def create_local_copy(self):
-        app = QtCore.QCoreApplication.instance()
-        if app is None:
-           app = QApplication(sys.argv)
-        app.setQuitOnLastWindowClosed(True)
-        widget=CopyDatabaseWidget()
-        widget.show()
-        app.exec_()
+    
     
     def get_all_data_in_period(self, t_ini, t_end):
         self.get_cursor()
