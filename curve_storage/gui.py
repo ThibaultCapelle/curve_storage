@@ -227,7 +227,9 @@ class NewFilterWidget(QGroupBox):
         self.calendar.hide()
         self.remove_button=QToolButton()
         folder=os.path.split(inspect.getfile(Curve))[0]
-        self.remove_button.setIcon(QtGui.QIcon(os.path.join(folder,'minus.png')))
+        self.remove_button.setIcon(QtGui.QIcon(os.path.join(folder,
+                                                            'pictures',
+                                                            'minus.png')))
         self.global_layout.addWidget(self.remove_button, 0, 3)
         self.remove_button.clicked.connect(self.remove)
         self.activate_box = QCheckBox('activate')
@@ -364,7 +366,9 @@ class FilterWidget(QGroupBox):
         self.setLayout(self.global_layout)
         self.add_button=QToolButton()
         folder=os.path.split(inspect.getfile(Curve))[0]
-        self.add_button.setIcon(QtGui.QIcon(os.path.join(folder,'plus.png')))
+        self.add_button.setIcon(QtGui.QIcon(os.path.join(folder,
+                                                         'pictures',
+                                                         'plus.png')))
         self.add_button.clicked.connect(self.add)
         self.global_layout.addWidget(self.add_button)
         self.filters=[]
@@ -758,6 +762,8 @@ class QTreeContextMenu(QMenu):
         self.move_action.triggered.connect(self.move_curve)
         self.plot_action=self.addAction('plot')
         self.plot_action.triggered.connect(self.plot)
+        self.edit_action=self.addAction('edit')
+        self.edit_action.triggered.connect(self.edit)
         self.height=self.geometry().height()
         self.setVisible(True)
         self.show()
@@ -789,6 +795,73 @@ class QTreeContextMenu(QMenu):
         selection=self.selected_items
         for item in selection:
             self.subplot_window.add_curve(item)
+    
+    def edit(self):
+        self.selected_items=self.tree_widget.selectedItems()
+        curve_ids=[item.data(0,0) for item in self.selected_items]
+        db=SQLDatabase()
+        metadatas=[db.get_name_sample_project(curve_id) for curve_id in curve_ids]
+        self.window=EditCurveWindow(self, curve_ids, metadatas)
+ 
+class EditCurveWindow(QWidget):
+    
+    def __init__(self, parent, curve_ids, metadatas):
+        self.curve_ids=curve_ids
+        super().__init__()
+        self.setWindowTitle('Edit Curve')
+        self.parent=parent
+        self.global_layout=QVBoxLayout()
+        self.setLayout(self.global_layout)
+        hlayout=QHBoxLayout()
+        self.global_layout.addLayout(hlayout)
+        hlayout.addWidget(QLabel('Name'))
+        self.name_edit=QLineEdit()
+        hlayout.addWidget(self.name_edit)
+        self.name_edit_confirmed=QCheckBox('should be edited')
+        hlayout.addWidget(self.name_edit_confirmed)
+        hlayout=QHBoxLayout()
+        self.global_layout.addLayout(hlayout)
+        hlayout.addWidget(QLabel('Sample'))
+        self.sample_edit=QLineEdit()
+        hlayout.addWidget(self.sample_edit)
+        self.sample_edit_confirmed=QCheckBox('should be edited')
+        hlayout.addWidget(self.sample_edit_confirmed)
+        hlayout=QHBoxLayout()
+        self.global_layout.addLayout(hlayout)
+        hlayout.addWidget(QLabel('Project'))
+        self.project_edit=QLineEdit()
+        hlayout.addWidget(self.project_edit)
+        self.project_edit_confirmed=QCheckBox('should be edited')
+        hlayout.addWidget(self.project_edit_confirmed)
+        if len(curve_ids)==1:
+            name, sample, project=metadatas[0]
+            self.name_edit.setText(name)
+            self.sample_edit.setText(sample)
+            self.project_edit.setText(project)
+        self.validate_button=QPushButton("Validate")
+        self.global_layout.addWidget(self.validate_button)
+        self.validate_button.clicked.connect(self.validate)
+        self.show()
+    
+    def keyPressEvent(self, event):
+        if event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
+            self.validate()
+    
+    def validate(self):
+        name=self.name_edit.text()
+        sample=self.sample_edit.text()
+        project=self.project_edit.text()
+        for curve_id in self.curve_ids:
+            curve=Curve(curve_id)
+            if self.name_edit_confirmed.isChecked():
+                curve.name=name
+            if self.project_edit_confirmed.isChecked():
+                curve.project=project
+            if self.sample_edit_confirmed.isChecked():
+                curve.sample=sample
+            curve.save()
+        self.close()           
+        
             
 class QParamsContextMenu(QMenu):
     

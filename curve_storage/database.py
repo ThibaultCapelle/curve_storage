@@ -632,6 +632,18 @@ class SQLDatabase():
             return name, date, childs, parent, sample
         else:
             return None
+        
+    def get_name_sample_project(self, curve_id):
+        if self.exists(curve_id):
+            self.get_cursor()
+            self.cursor.execute('''SELECT name, sample, project FROM data WHERE id=%s;''', (int(curve_id),))
+            res = self.cursor.fetchone()
+            name = res[0]
+            sample = res[1]
+            project = res[2]
+            return name,sample, project
+        else:
+            return None
     
     def get_subhierarchy(self, curve_id, res=None):
         childs=self.get_childs(curve_id)
