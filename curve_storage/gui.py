@@ -646,9 +646,17 @@ class FitButton(QPushButton):
         y=curve.y[cond]
         x=np.real(curve.x[cond])
         self.fit_function=self.treewidget.fit_function
-        self.fitparams, self.cov_x=Fit.fit(x,y, 
-                               function=self.fit_function,
-                               extract_covariance=True)
+        state=self.plotwidget.window().plot_options.currentText()
+        if state=='dB':
+            self.fitparams, self.cov_x=Fit.fit(x,y, 
+                                   function=self.fit_function,
+                                   extract_covariance=True,
+                                   to_minimize='log')
+        else:
+            self.fitparams, self.cov_x=Fit.fit(x,y, 
+                                   function=self.fit_function,
+                                   extract_covariance=True,
+                                   to_minimize='linear')
         if hasattr(getattr(Fit, self.fit_function), 'keys'):
             self.keys=getattr(getattr(Fit, self.fit_function), 'keys')
         self.x_fit=np.linspace(np.min(x), np.max(x), 1000)
@@ -659,12 +667,12 @@ class FitButton(QPushButton):
             fit_curve.clear()
             
             
-        state=self.plotwidget.window().plot_options.currentText()
+        
         
         if state=='dB':
             x_fit=self.x_fit[np.abs(self.y_fit)!=0]
             y_fit=self.y_fit[np.abs(self.y_fit)!=0]
-            self.plotwidget.fit_curve=self.getPlotItem().plot(x_fit,
+            self.plotwidget.fit_curve=self.plotwidget.getPlotItem().plot(x_fit,
                                                       20*np.log10(y_fit),
                                                       pen=pg.mkPen('b'))
         elif state=='Real':
