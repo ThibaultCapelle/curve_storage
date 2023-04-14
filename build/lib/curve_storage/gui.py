@@ -242,10 +242,7 @@ class NewFilterWidget(QGroupBox):
         self.suggestion_list.currentTextChanged.connect(self.suggestion_chosen)
     
     def suggestion_chosen(self, text):
-        #try:
         self.item3.textChanged.disconnect(self.text_changed)
-        #except TypeError:
-        #    pass
         self.item3.setText(text)
         self.item3.textChanged.connect(self.text_changed)
     
