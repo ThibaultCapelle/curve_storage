@@ -117,6 +117,42 @@ class WindowWidget(QWidget):
                                        'yscale':1,
                                        'xlabel':'Time (s)',
                                        'ylabel':'Value (a.u.)'})
+
+class LegendItem(QHBoxLayout):
+    
+    def __init__(self, parent, item, color):
+        super().__init__()
+        self.widget=parent
+        
+        self.curve_id = int(item.data(0,0))
+        self.name = item.data(1,0)
+        self.date = item.data(2,0)
+        self.text = QLabel('id: {:}'.format(self.curve_id))
+        self.addWidget(self.text)
+        self.text.setAutoFillBackground(True) # This is important!!
+        color  = QtGui.QColor(color)#QColor(233, 10, 150)
+        alpha  = 255
+        values = "{r}, {g}, {b}, {a}".format(r = color.red(),
+                                             g = color.green(),
+                                             b = color.blue(),
+                                             a = alpha
+                                             )
+        self.text.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
+        self.show_tick=QCheckBox('')
+        self.show_tick.setChecked(True)
+        self.addWidget(self.show_tick)
+        self.addWidget(self.text)
+        self.show_tick.stateChanged.connect(self.widget.update)
+    
+    def update(self):
+        text=''
+        if self.widget.config_id_tick.isChecked():
+            text+='id: {:}'.format(self.curve_id)
+        if self.widget.config_name_tick.isChecked():
+            text+='name: {:}'.format(self.name)
+        if self.widget.config_time_tick.isChecked():
+            text+='time: {:}'.format(self.date)
+        self.text.setText(text)
         
 
 class LegendWidget(QWidget):
@@ -127,23 +163,34 @@ class LegendWidget(QWidget):
         self.layout = QVBoxLayout()
         self.widget.setLayout(self.layout)
         #self.setMinimumSize(QSize(100,300))
-        
+        self.config_boxes=QHBoxLayout()
+        self.layout.addLayout(self.config_boxes)
+        #self.config_boxes.addWidget(QLabel('id'))
+        self.config_id_tick=QCheckBox('id')
+        self.config_boxes.addWidget(self.config_id_tick)
+        self.config_id_tick.setChecked(True)
+        self.config_name_tick=QCheckBox('name')
+        self.config_boxes.addWidget(self.config_name_tick)
+        self.config_time_tick=QCheckBox('time')
+        self.config_boxes.addWidget(self.config_time_tick)
         self.setLayout(self.layout)
         self.chans=[]
+        self.config_id_tick.stateChanged.connect(self.update)
+        self.config_name_tick.stateChanged.connect(self.update)
+        self.config_time_tick.stateChanged.connect(self.update)
     
-    def add_curve(self, item, color):
-        curve_id = int(item.data(0,0))
-        text=QLabel('id: {:}'.format(curve_id))
-        text.setAutoFillBackground(True) # This is important!!
-        color  = QtGui.QColor(color)#QColor(233, 10, 150)
-        alpha  = 255
-        values = "{r}, {g}, {b}, {a}".format(r = color.red(),
-                                             g = color.green(),
-                                             b = color.blue(),
-                                             a = alpha
-                                             )
-        text.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
-        self.layout.addWidget(text)
+    def add_curve(self, item, color, data):
+        new_item=LegendItem(self, item, color)
+        self.layout.addLayout(new_item)
+        self.chans.append((new_item, data))
+    
+    def update(self):
+        for item in self.chans:
+            item[0].update()
+            if item[0].show_tick.isChecked():
+                item[1].show()
+            else:
+                item[1].hide()
         
 class PlotWindow(QWidget):
     
@@ -176,7 +223,7 @@ class PlotWindow(QWidget):
         pen=pg.mkPen(color)
         self.plot_widget.getPlotItem().enableAutoRange(enable=True)
         curve_id = int(item.data(0,0))
-        self.legend.add_curve(item, color)
+        
         date = item.data(2,0)
         x,y,params=PlotWidget.get_data_and_params_from_date_and_id(date, curve_id)
         y_r, y_i, y_abs, y_angle=(np.real(y), np.imag(y), np.abs(y), np.angle(y))
@@ -185,18 +232,20 @@ class PlotWindow(QWidget):
         if state=='dB':
             x=x[y_abs!=0]
             y_abs=y_abs[y_abs!=0]
-            self.plot_widget.getPlotItem().plot(x, 20*np.log10(y_abs), pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, 20*np.log10(y_abs), pen=pen)
         elif state=='Real':
-            self.plot_widget.getPlotItem().plot(x, y_r, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, y_r, pen=pen)
         elif state=='Imaginary':
-            self.plot_widget.getPlotItem().plot(x, y_i, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, y_i, pen=pen)
         elif state=='Smith':
-            self.plot_widget.getPlotItem().plot(y_r, y_i, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(y_r, y_i, pen=pen)
         elif state=='Abs':
-            self.plot_widget.getPlotItem().plot(x, y_abs, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, y_abs, pen=pen)
         elif state=='Angle':
-            self.plot_widget.getPlotItem().plot(x, y_angle, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, y_angle, pen=pen)
         self.plot_widget.getPlotItem().enableAutoRange(enable=False)
+        
+        self.legend.add_curve(item, color, data)
 
 class ProjectLineEdit(QLineEdit):
     
