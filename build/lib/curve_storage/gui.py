@@ -10,7 +10,7 @@ QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem, 
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
 QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
-QCalendarWidget, QRadioButton, QColorDialog)
+QCalendarWidget, QRadioButton, QColorDialog, QFrame)
 from PyQt5.QtCore import QRect, QPoint, QSize
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -49,7 +49,7 @@ class WindowWidget(QWidget):
         self.add_filters = QCheckBox('add_filters')
         self.show_filters = QCheckBox('Show filters')
         self.show_filters.hide()
-        self.filter_widget = FilterWidget(self)
+        self.filter_widget = MasterFilterWidget(self)
         
         self.layout_show_first = QHBoxLayout()
         self.layout_page_number = QHBoxLayout()
@@ -117,6 +117,42 @@ class WindowWidget(QWidget):
                                        'yscale':1,
                                        'xlabel':'Time (s)',
                                        'ylabel':'Value (a.u.)'})
+
+class LegendItem(QHBoxLayout):
+    
+    def __init__(self, parent, item, color):
+        super().__init__()
+        self.widget=parent
+        
+        self.curve_id = int(item.data(0,0))
+        self.name = item.data(1,0)
+        self.date = item.data(2,0)
+        self.text = QLabel('id: {:}'.format(self.curve_id))
+        self.addWidget(self.text)
+        self.text.setAutoFillBackground(True) # This is important!!
+        color  = QtGui.QColor(color)#QColor(233, 10, 150)
+        alpha  = 255
+        values = "{r}, {g}, {b}, {a}".format(r = color.red(),
+                                             g = color.green(),
+                                             b = color.blue(),
+                                             a = alpha
+                                             )
+        self.text.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
+        self.show_tick=QCheckBox('')
+        self.show_tick.setChecked(True)
+        self.addWidget(self.show_tick)
+        self.addWidget(self.text)
+        self.show_tick.stateChanged.connect(self.widget.update)
+    
+    def update(self):
+        text=''
+        if self.widget.config_id_tick.isChecked():
+            text+='id: {:}'.format(self.curve_id)
+        if self.widget.config_name_tick.isChecked():
+            text+='name: {:}'.format(self.name)
+        if self.widget.config_time_tick.isChecked():
+            text+='time: {:}'.format(self.date)
+        self.text.setText(text)
         
 
 class LegendWidget(QWidget):
@@ -127,23 +163,34 @@ class LegendWidget(QWidget):
         self.layout = QVBoxLayout()
         self.widget.setLayout(self.layout)
         #self.setMinimumSize(QSize(100,300))
-        
+        self.config_boxes=QHBoxLayout()
+        self.layout.addLayout(self.config_boxes)
+        #self.config_boxes.addWidget(QLabel('id'))
+        self.config_id_tick=QCheckBox('id')
+        self.config_boxes.addWidget(self.config_id_tick)
+        self.config_id_tick.setChecked(True)
+        self.config_name_tick=QCheckBox('name')
+        self.config_boxes.addWidget(self.config_name_tick)
+        self.config_time_tick=QCheckBox('time')
+        self.config_boxes.addWidget(self.config_time_tick)
         self.setLayout(self.layout)
         self.chans=[]
+        self.config_id_tick.stateChanged.connect(self.update)
+        self.config_name_tick.stateChanged.connect(self.update)
+        self.config_time_tick.stateChanged.connect(self.update)
     
-    def add_curve(self, item, color):
-        curve_id = int(item.data(0,0))
-        text=QLabel('id: {:}'.format(curve_id))
-        text.setAutoFillBackground(True) # This is important!!
-        color  = QtGui.QColor(color)#QColor(233, 10, 150)
-        alpha  = 255
-        values = "{r}, {g}, {b}, {a}".format(r = color.red(),
-                                             g = color.green(),
-                                             b = color.blue(),
-                                             a = alpha
-                                             )
-        text.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
-        self.layout.addWidget(text)
+    def add_curve(self, item, color, data):
+        new_item=LegendItem(self, item, color)
+        self.layout.addLayout(new_item)
+        self.chans.append((new_item, data))
+    
+    def update(self):
+        for item in self.chans:
+            item[0].update()
+            if item[0].show_tick.isChecked():
+                item[1].show()
+            else:
+                item[1].hide()
         
 class PlotWindow(QWidget):
     
@@ -176,7 +223,7 @@ class PlotWindow(QWidget):
         pen=pg.mkPen(color)
         self.plot_widget.getPlotItem().enableAutoRange(enable=True)
         curve_id = int(item.data(0,0))
-        self.legend.add_curve(item, color)
+        
         date = item.data(2,0)
         x,y,params=PlotWidget.get_data_and_params_from_date_and_id(date, curve_id)
         y_r, y_i, y_abs, y_angle=(np.real(y), np.imag(y), np.abs(y), np.angle(y))
@@ -185,18 +232,20 @@ class PlotWindow(QWidget):
         if state=='dB':
             x=x[y_abs!=0]
             y_abs=y_abs[y_abs!=0]
-            self.plot_widget.getPlotItem().plot(x, 20*np.log10(y_abs), pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, 20*np.log10(y_abs), pen=pen)
         elif state=='Real':
-            self.plot_widget.getPlotItem().plot(x, y_r, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, y_r, pen=pen)
         elif state=='Imaginary':
-            self.plot_widget.getPlotItem().plot(x, y_i, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, y_i, pen=pen)
         elif state=='Smith':
-            self.plot_widget.getPlotItem().plot(y_r, y_i, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(y_r, y_i, pen=pen)
         elif state=='Abs':
-            self.plot_widget.getPlotItem().plot(x, y_abs, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, y_abs, pen=pen)
         elif state=='Angle':
-            self.plot_widget.getPlotItem().plot(x, y_angle, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, y_angle, pen=pen)
         self.plot_widget.getPlotItem().enableAutoRange(enable=False)
+        
+        self.legend.add_curve(item, color, data)
 
 class ProjectLineEdit(QLineEdit):
     
@@ -242,7 +291,10 @@ class NewFilterWidget(QGroupBox):
         self.suggestion_list.currentTextChanged.connect(self.suggestion_chosen)
     
     def suggestion_chosen(self, text):
+        #try:
         self.item3.textChanged.disconnect(self.text_changed)
+        #except TypeError:
+        #    pass
         self.item3.setText(text)
         self.item3.textChanged.connect(self.text_changed)
     
@@ -353,8 +405,7 @@ class NewFilterWidget(QGroupBox):
                               '<',
                               str(t2))]
 
-
-class FilterWidget(QGroupBox):
+class MasterFilterWidget(QGroupBox):
     
     def __init__(self, window):
         super().__init__(parent=window)
@@ -365,8 +416,8 @@ class FilterWidget(QGroupBox):
         self.global_layout=QVBoxLayout()
         self.setLayout(self.global_layout)
         self.add_button=QToolButton()
-        folder=os.path.split(inspect.getfile(Curve))[0]
-        self.add_button.setIcon(QtGui.QIcon(os.path.join(folder,
+        self.folder=os.path.split(inspect.getfile(Curve))[0]
+        self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
                                                          'pictures',
                                                          'plus.png')))
         self.add_button.clicked.connect(self.add)
@@ -382,7 +433,7 @@ class FilterWidget(QGroupBox):
             self.hide()
         else:
             pass
-
+    
     def set_visible(self, state):
         if isinstance(state, bool):
             pass
@@ -396,16 +447,134 @@ class FilterWidget(QGroupBox):
         else:
             pass
     
+    def update_icon(self):
+        if len(self.filters)==0:
+            self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'plus.png')))
+        else:
+            self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'or.png')))
+    
     def add(self):
-        new_filter=NewFilterWidget(self.parent, self)
+        new_filter=FilterWidget(self)
         self.global_layout.addWidget(new_filter)
         new_filter.resize(10,10)
         self.filters.append(new_filter)
+        self.update_icon()
         self.show()
     
     def remove_filter(self, filt):
         self.global_layout.removeWidget(filt)
         self.filters.remove(filt)
+        self.update_icon()
+    
+    @property
+    def at_least_one_check(self):
+        if len(self.filters)==0:
+            return False
+        else:
+            for f in self.filters:
+                if f.at_least_one_check:
+                    return True
+            return False
+    
+    def get_query(self):
+        queries, placeholders=[], []
+        for f in self.filters:
+            if f.at_least_one_check:
+                if f.activate_box.isChecked():
+                    query, placeholder=f.get_query()
+                    queries.append(query)
+                    for placeholder_item in placeholder:
+                        placeholders.append(placeholder_item)
+        query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
+        .format(fields=sql.SQL(' OR ').join(queries),
+                offset=sql.Composed([sql.SQL(" OFFSET "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" ROWS ")]),
+                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" rows only")]))
+        return query, placeholders
+
+class FilterWidget(QGroupBox):
+    
+    def __init__(self, window):
+        super().__init__(parent=window)
+        self.parent=window
+        self.global_layout=QVBoxLayout()
+        self.setLayout(self.global_layout)
+        self.toplayout=QHBoxLayout()
+        self.global_layout.addLayout(self.toplayout)
+        self.add_button=QToolButton()
+        self.folder=os.path.split(inspect.getfile(Curve))[0]
+        self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'plus.png')))
+        self.add_button.clicked.connect(self.add)
+        self.toplayout.addWidget(self.add_button)
+        self.remove_button=QToolButton()
+        self.remove_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                            'pictures',
+                                                            'minus.png')))
+        self.toplayout.addWidget(self.remove_button)
+        self.remove_button.clicked.connect(self.remove)
+        self.activate_box = QCheckBox('activate')
+        self.toplayout.addWidget(self.activate_box)
+        self.filters=[]
+    
+    def show_widget(self, state):
+        if isinstance(state, bool):
+            pass
+        elif state==QtCore.Qt.Checked:
+            self.show()
+        elif state==QtCore.Qt.Unchecked:
+            self.hide()
+        else:
+            pass
+    
+    def update_icon(self):
+        if len(self.filters)==0:
+            self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'plus.png')))
+        else:
+            self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'and.png')))
+    
+    def add(self):
+        new_filter=NewFilterWidget(self.parent, self)
+        self.global_layout.addWidget(new_filter)
+        new_filter.resize(10,10)
+        self.filters.append(new_filter)
+        self.update_icon()
+        self.show()
+    
+    def remove_filter(self, filt):
+        self.global_layout.removeWidget(filt)
+        self.filters.remove(filt)
+        self.update_icon()
+    
+    def remove(self):
+        for widget in [self.remove_button,
+                       self.activate_box]:
+            widget.hide()
+            self.global_layout.removeWidget(widget)
+        self.parent.remove_filter(self)
+        self.hide()
+    
+    @property
+    def at_least_one_check(self):
+        if len(self.filters)==0:
+            return False
+        else:
+            for f in self.filters:
+                if f.activate_box.isChecked():
+                    return True
+            return False
     
     def get_query(self):
         filters=[Filter("id","=","parent")]
@@ -418,14 +587,7 @@ class FilterWidget(QGroupBox):
                 else:
                     filters.append(res)
         placeholders=[f.item2 for f in filters if  f.placeholder]
-        query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
-        .format(fields=sql.SQL(' AND ').join(filters),
-                offset=sql.Composed([sql.SQL(" OFFSET "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" ROWS ")]),
-                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" rows only")]))
+        query = sql.SQL("({fields})").format(fields=sql.SQL(' AND ').join(filters))
         return query, placeholders
 
 class Comment(QTextEdit):
@@ -1120,7 +1282,7 @@ class TreeWidget(QTreeWidget):
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
                                      sql.Placeholder(),
                                      sql.SQL(" rows only")])), [offset,new_size]
-        elif self.window().add_filters.isChecked():
+        elif self.window().add_filters.isChecked() and self.window().filter_widget.at_least_one_check:
             query, placeholders=self.window().filter_widget.get_query()
             placeholders.append(offset)
             placeholders.append(new_size)

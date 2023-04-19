@@ -7,5 +7,7 @@ curve_storage.egg-info/PKG-INFO
 curve_storage.egg-info/SOURCES.txt
 curve_storage.egg-info/dependency_links.txt
 curve_storage.egg-info/top_level.txt
+curve_storage/pictures/and.png
 curve_storage/pictures/minus.png
+curve_storage/pictures/or.png
 curve_storage/pictures/plus.png

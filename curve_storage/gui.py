@@ -416,8 +416,8 @@ class MasterFilterWidget(QGroupBox):
         self.global_layout=QVBoxLayout()
         self.setLayout(self.global_layout)
         self.add_button=QToolButton()
-        folder=os.path.split(inspect.getfile(Curve))[0]
-        self.add_button.setIcon(QtGui.QIcon(os.path.join(folder,
+        self.folder=os.path.split(inspect.getfile(Curve))[0]
+        self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
                                                          'pictures',
                                                          'plus.png')))
         self.add_button.clicked.connect(self.add)
@@ -447,16 +447,28 @@ class MasterFilterWidget(QGroupBox):
         else:
             pass
     
+    def update_icon(self):
+        if len(self.filters)==0:
+            self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'plus.png')))
+        else:
+            self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'or.png')))
+    
     def add(self):
         new_filter=FilterWidget(self)
         self.global_layout.addWidget(new_filter)
         new_filter.resize(10,10)
         self.filters.append(new_filter)
+        self.update_icon()
         self.show()
     
     def remove_filter(self, filt):
         self.global_layout.removeWidget(filt)
         self.filters.remove(filt)
+        self.update_icon()
     
     @property
     def at_least_one_check(self):
@@ -485,7 +497,6 @@ class MasterFilterWidget(QGroupBox):
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
                                      sql.Placeholder(),
                                      sql.SQL(" rows only")]))
-        print(query)
         return query, placeholders
 
 class FilterWidget(QGroupBox):
@@ -493,22 +504,19 @@ class FilterWidget(QGroupBox):
     def __init__(self, window):
         super().__init__(parent=window)
         self.parent=window
-        #self.hide()
-        #self.parent.add_filters.stateChanged.connect(self.set_visible)
-        #self.parent.show_filters.stateChanged.connect(self.show_widget)
         self.global_layout=QVBoxLayout()
         self.setLayout(self.global_layout)
         self.toplayout=QHBoxLayout()
         self.global_layout.addLayout(self.toplayout)
         self.add_button=QToolButton()
-        folder=os.path.split(inspect.getfile(Curve))[0]
-        self.add_button.setIcon(QtGui.QIcon(os.path.join(folder,
+        self.folder=os.path.split(inspect.getfile(Curve))[0]
+        self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
                                                          'pictures',
                                                          'plus.png')))
         self.add_button.clicked.connect(self.add)
         self.toplayout.addWidget(self.add_button)
         self.remove_button=QToolButton()
-        self.remove_button.setIcon(QtGui.QIcon(os.path.join(folder,
+        self.remove_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
                                                             'pictures',
                                                             'minus.png')))
         self.toplayout.addWidget(self.remove_button)
@@ -527,16 +535,28 @@ class FilterWidget(QGroupBox):
         else:
             pass
     
+    def update_icon(self):
+        if len(self.filters)==0:
+            self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'plus.png')))
+        else:
+            self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
+                                                         'pictures',
+                                                         'and.png')))
+    
     def add(self):
         new_filter=NewFilterWidget(self.parent, self)
         self.global_layout.addWidget(new_filter)
         new_filter.resize(10,10)
         self.filters.append(new_filter)
+        self.update_icon()
         self.show()
     
     def remove_filter(self, filt):
         self.global_layout.removeWidget(filt)
         self.filters.remove(filt)
+        self.update_icon()
     
     def remove(self):
         for widget in [self.remove_button,
@@ -567,7 +587,7 @@ class FilterWidget(QGroupBox):
                 else:
                     filters.append(res)
         placeholders=[f.item2 for f in filters if  f.placeholder]
-        query = sql.SQL(' AND ').join(filters)
+        query = sql.SQL("({fields})").format(fields=sql.SQL(' AND ').join(filters))
         return query, placeholders
 
 class Comment(QTextEdit):
