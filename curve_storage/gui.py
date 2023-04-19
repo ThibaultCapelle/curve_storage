@@ -10,7 +10,7 @@ QGridLayout, QHBoxLayout, QLabel, QWidget, QVBoxLayout,
 QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem, 
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
 QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
-QCalendarWidget, QRadioButton, QColorDialog)
+QCalendarWidget, QRadioButton, QColorDialog, QFrame)
 from PyQt5.QtCore import QRect, QPoint, QSize
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -49,7 +49,7 @@ class WindowWidget(QWidget):
         self.add_filters = QCheckBox('add_filters')
         self.show_filters = QCheckBox('Show filters')
         self.show_filters.hide()
-        self.filter_widget = FilterWidget(self)
+        self.filter_widget = MasterFilterWidget(self)
         
         self.layout_show_first = QHBoxLayout()
         self.layout_page_number = QHBoxLayout()
@@ -405,8 +405,7 @@ class NewFilterWidget(QGroupBox):
                               '<',
                               str(t2))]
 
-
-class FilterWidget(QGroupBox):
+class MasterFilterWidget(QGroupBox):
     
     def __init__(self, window):
         super().__init__(parent=window)
@@ -434,7 +433,7 @@ class FilterWidget(QGroupBox):
             self.hide()
         else:
             pass
-
+    
     def set_visible(self, state):
         if isinstance(state, bool):
             pass
@@ -444,6 +443,86 @@ class FilterWidget(QGroupBox):
             self.show()
         elif state==QtCore.Qt.Unchecked:
             self.parent.show_filters.hide()
+            self.hide()
+        else:
+            pass
+    
+    def add(self):
+        new_filter=FilterWidget(self)
+        self.global_layout.addWidget(new_filter)
+        new_filter.resize(10,10)
+        self.filters.append(new_filter)
+        self.show()
+    
+    def remove_filter(self, filt):
+        self.global_layout.removeWidget(filt)
+        self.filters.remove(filt)
+    
+    @property
+    def at_least_one_check(self):
+        if len(self.filters)==0:
+            return False
+        else:
+            for f in self.filters:
+                if f.at_least_one_check:
+                    return True
+            return False
+    
+    def get_query(self):
+        queries, placeholders=[], []
+        for f in self.filters:
+            if f.at_least_one_check:
+                if f.activate_box.isChecked():
+                    query, placeholder=f.get_query()
+                    queries.append(query)
+                    for placeholder_item in placeholder:
+                        placeholders.append(placeholder_item)
+        query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
+        .format(fields=sql.SQL(' OR ').join(queries),
+                offset=sql.Composed([sql.SQL(" OFFSET "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" ROWS ")]),
+                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
+                                     sql.Placeholder(),
+                                     sql.SQL(" rows only")]))
+        print(query)
+        return query, placeholders
+
+class FilterWidget(QGroupBox):
+    
+    def __init__(self, window):
+        super().__init__(parent=window)
+        self.parent=window
+        #self.hide()
+        #self.parent.add_filters.stateChanged.connect(self.set_visible)
+        #self.parent.show_filters.stateChanged.connect(self.show_widget)
+        self.global_layout=QVBoxLayout()
+        self.setLayout(self.global_layout)
+        self.toplayout=QHBoxLayout()
+        self.global_layout.addLayout(self.toplayout)
+        self.add_button=QToolButton()
+        folder=os.path.split(inspect.getfile(Curve))[0]
+        self.add_button.setIcon(QtGui.QIcon(os.path.join(folder,
+                                                         'pictures',
+                                                         'plus.png')))
+        self.add_button.clicked.connect(self.add)
+        self.toplayout.addWidget(self.add_button)
+        self.remove_button=QToolButton()
+        self.remove_button.setIcon(QtGui.QIcon(os.path.join(folder,
+                                                            'pictures',
+                                                            'minus.png')))
+        self.toplayout.addWidget(self.remove_button)
+        self.remove_button.clicked.connect(self.remove)
+        self.activate_box = QCheckBox('activate')
+        self.toplayout.addWidget(self.activate_box)
+        self.filters=[]
+    
+    def show_widget(self, state):
+        if isinstance(state, bool):
+            pass
+        elif state==QtCore.Qt.Checked:
+            self.show()
+        elif state==QtCore.Qt.Unchecked:
             self.hide()
         else:
             pass
@@ -459,6 +538,24 @@ class FilterWidget(QGroupBox):
         self.global_layout.removeWidget(filt)
         self.filters.remove(filt)
     
+    def remove(self):
+        for widget in [self.remove_button,
+                       self.activate_box]:
+            widget.hide()
+            self.global_layout.removeWidget(widget)
+        self.parent.remove_filter(self)
+        self.hide()
+    
+    @property
+    def at_least_one_check(self):
+        if len(self.filters)==0:
+            return False
+        else:
+            for f in self.filters:
+                if f.activate_box.isChecked():
+                    return True
+            return False
+    
     def get_query(self):
         filters=[Filter("id","=","parent")]
         for f in self.filters:
@@ -470,14 +567,7 @@ class FilterWidget(QGroupBox):
                 else:
                     filters.append(res)
         placeholders=[f.item2 for f in filters if  f.placeholder]
-        query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
-        .format(fields=sql.SQL(' AND ').join(filters),
-                offset=sql.Composed([sql.SQL(" OFFSET "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" ROWS ")]),
-                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" rows only")]))
+        query = sql.SQL(' AND ').join(filters)
         return query, placeholders
 
 class Comment(QTextEdit):
@@ -1172,7 +1262,7 @@ class TreeWidget(QTreeWidget):
                 firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
                                      sql.Placeholder(),
                                      sql.SQL(" rows only")])), [offset,new_size]
-        elif self.window().add_filters.isChecked():
+        elif self.window().add_filters.isChecked() and self.window().filter_widget.at_least_one_check:
             query, placeholders=self.window().filter_widget.get_query()
             placeholders.append(offset)
             placeholders.append(new_size)
