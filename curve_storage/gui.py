@@ -132,7 +132,6 @@ class WindowWidget(QWidget):
     
     def update_project(self):
         SQLDatabase.set_project(self.current_project_widget.text())
-        print('new project is '+SQLDatabase.get_project())
         self.filter_widget.project_filter.item3.setText(self.current_project_widget.text())
 
 class LegendItem(QHBoxLayout):
@@ -952,6 +951,8 @@ class QTreeContextMenu(QMenu):
         self.plot_action.triggered.connect(self.plot)
         self.edit_action=self.addAction('edit')
         self.edit_action.triggered.connect(self.edit)
+        self.column_action=self.addAction('hide columns')
+        self.column_action.triggered.connect(self.hide_columns)
         self.height=self.geometry().height()
         self.setVisible(True)
         self.show()
@@ -990,7 +991,63 @@ class QTreeContextMenu(QMenu):
         db=SQLDatabase()
         metadatas=[db.get_name_sample_project(curve_id) for curve_id in curve_ids]
         self.window=EditCurveWindow(self, curve_ids, metadatas)
- 
+    
+    def hide_columns(self):
+        self.window=HideColumnWindow(self)
+
+class HideColumnWindow(QWidget):
+    
+    def __init__(self, parent):
+        super().__init__()
+        
+        self.setWindowTitle('Hide Columns')
+        self.parent=parent
+        self.layout=QGridLayout()
+        self.setLayout(self.layout)
+        self.layout.addWidget(QLabel('Id'),0,0)
+        self.hide_id=QCheckBox('')
+        self.layout.addWidget(self.hide_id,0,1)
+        
+        self.layout.addWidget(QLabel('Name'),1,0)
+        self.hide_name=QCheckBox('')
+        self.layout.addWidget(self.hide_name,1,1)
+        
+        self.layout.addWidget(QLabel('Time'),2,0)
+        self.hide_time=QCheckBox('')
+        self.layout.addWidget(self.hide_time,2,1)
+        
+        self.layout.addWidget(QLabel('Sample'),3,0)
+        self.hide_sample=QCheckBox('')
+        self.layout.addWidget(self.hide_sample,3,1)
+        
+        self.layout.addWidget(QLabel('Project'),4,0)
+        self.hide_project=QCheckBox('')
+        self.layout.addWidget(self.hide_project,4,1)
+        
+        self.validate_button=QPushButton("Validate")
+        self.layout.addWidget(self.validate_button, 5, 0, 1, 2)
+        self.validate_button.clicked.connect(self.validate)
+        
+        self.dict_columns=dict({0:self.hide_id,
+                                1:self.hide_name,
+                                2:self.hide_time,
+                                3:self.hide_sample,
+                                4:self.hide_project})
+        
+        for key, val in self.dict_columns.items():
+            val.setChecked(self.parent.tree_widget.isColumnHidden(key))
+        self.setGeometry(QRect(20, 0, 300, 200))
+        self.show()
+    
+    def keyPressEvent(self, event):
+        if event.key() in [QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return]:
+            self.validate()
+            
+    def validate(self):
+        for key, val in self.dict_columns.items():
+            self.parent.tree_widget.setColumnHidden(key, val.isChecked())
+        self.close()  
+        
 class EditCurveWindow(QWidget):
     
     def __init__(self, parent, curve_ids, metadatas):
