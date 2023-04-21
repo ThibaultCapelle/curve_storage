@@ -127,6 +127,7 @@ class WindowWidget(QWidget):
     def update_project(self):
         SQLDatabase.set_project(self.current_project_widget.text())
         print('new project is '+SQLDatabase.get_project())
+        self.filter_widget.project_filter.item3.setText(self.current_project_widget.text())
 
 class LegendItem(QHBoxLayout):
     
@@ -298,15 +299,9 @@ class NewFilterWidget(QGroupBox):
         self.global_layout.addWidget(self.activate_box, 0, 4)
         self.item1.currentTextChanged.connect(self.column_changed)
         self.item3.textChanged.connect(self.text_changed)
-        self.suggestion_list.currentTextChanged.connect(self.suggestion_chosen)
     
-    def suggestion_chosen(self, text):
-        #try:
-        self.item3.textChanged.disconnect(self.text_changed)
-        #except TypeError:
-        #    pass
-        self.item3.setText(text)
-        self.item3.textChanged.connect(self.text_changed)
+    def set_permanent(self):
+        self.remove_button.hide()
     
     def text_changed(self, text):
         if self.item1.currentText()=='project':
@@ -315,26 +310,22 @@ class NewFilterWidget(QGroupBox):
             db.cursor.execute('''SELECT DISTINCT project FROM data WHERE position(%s in project)>0;''',
                               (text,))
             res=[k[0] for k in db.cursor.fetchall()]
-            self.item3.textChanged.disconnect(self.text_changed)
             self.suggestion_list.show()
             self.suggestion_list.clear()
             self.suggestion_list.addItem('')
             for item in res:
                 self.suggestion_list.addItem(item)
-            self.item3.textChanged.connect(self.text_changed)
         elif self.item1.currentText()=='sample':
             db=SQLDatabase()
             db.get_cursor()
             db.cursor.execute('''SELECT DISTINCT sample FROM data WHERE position(%s in sample)>0;''',
                               (text,))
             res=[k[0] for k in db.cursor.fetchall()]
-            self.item3.textChanged.disconnect(self.text_changed)
             self.suggestion_list.show()
             self.suggestion_list.clear()
             self.suggestion_list.addItem('')
             for item in res:
                 self.suggestion_list.addItem(item)
-            self.item3.textChanged.connect(self.text_changed)
             
         
     def column_changed(self, text):
@@ -435,14 +426,17 @@ class MasterFilterWidget(QGroupBox):
         self.filters=[]
         self.add()
         self.base_filter=self.filters[0]
+        self.base_filter.set_permanent()
         self.base_filter.add()
         self.parent_filter=self.base_filter.filters[0]
+        self.parent_filter.set_permanent()
         self.parent_filter.item1.setCurrentText('id')
         self.parent_filter.item2.setCurrentText('=')
         self.parent_filter.item3.setText('parent')
         self.parent_filter.activate_box.setChecked(True)
         self.base_filter.add()
         self.project_filter=self.base_filter.filters[1]
+        self.project_filter.set_permanent()
         self.project_filter.item1.setCurrentText('project')
         self.project_filter.item2.setCurrentText('=')
         self.project_filter.item3.setText(SQLDatabase.get_project())
@@ -560,6 +554,9 @@ class FilterWidget(QGroupBox):
         self.activate_box = QCheckBox('activate')
         self.toplayout.addWidget(self.activate_box)
         self.filters=[]
+    
+    def set_permanent(self):
+        self.remove_button.hide()
     
     def show_widget(self, state):
         if isinstance(state, bool):
