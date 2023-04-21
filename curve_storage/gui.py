@@ -51,7 +51,7 @@ class WindowWidget(QWidget):
         self.show_filters.hide()
         self.filter_widget = MasterFilterWidget(self)
         
-        self.layout_show_first = QHBoxLayout()
+        self.layout_show_first = QGridLayout()
         self.layout_page_number = QHBoxLayout()
         self.layout_global.addWidget(self.filter_widget)
         self.layout_global.addLayout(self.layout_left)
@@ -72,12 +72,18 @@ class WindowWidget(QWidget):
         self.layout_page_number.addWidget(self.page_number_spinbox)
         
         self.compute_button = QPushButton('update')
-        self.layout_show_first.addWidget(self.show_first_label)
-        self.layout_show_first.addWidget(self.spinbox_widget)
+        self.layout_show_first.addWidget(QLabel('current project'), 0, 0,
+                                         1, 2)
+        self.current_project_widget=QLineEdit(SQLDatabase.get_project())
+        self.current_project_widget.editingFinished.connect(self.update_project)
+        self.layout_show_first.addWidget(self.current_project_widget, 0, 2,
+                                         1, 3)
+        self.layout_show_first.addWidget(self.show_first_label, 1, 0)
+        self.layout_show_first.addWidget(self.spinbox_widget, 1, 1)
         self.layout_left.addWidget(self.tree_widget)
-        self.layout_show_first.addWidget(self.add_filters)
-        self.layout_show_first.addWidget(self.show_filters)
-        self.layout_show_first.addWidget(self.compute_button)
+        self.layout_show_first.addWidget(self.add_filters, 1, 2)
+        self.layout_show_first.addWidget(self.show_filters, 1, 3)
+        self.layout_show_first.addWidget(self.compute_button, 1, 4)
         self.layout_center.addLayout(self.layout_top)
         self.layout_top.addWidget(self.plot_options)
         self.layout_center.addWidget(self.plot_widget)
@@ -117,6 +123,10 @@ class WindowWidget(QWidget):
                                        'yscale':1,
                                        'xlabel':'Time (s)',
                                        'ylabel':'Value (a.u.)'})
+    
+    def update_project(self):
+        SQLDatabase.set_project(self.current_project_widget.text())
+        print('new project is '+SQLDatabase.get_project())
 
 class LegendItem(QHBoxLayout):
     
@@ -423,6 +433,22 @@ class MasterFilterWidget(QGroupBox):
         self.add_button.clicked.connect(self.add)
         self.global_layout.addWidget(self.add_button)
         self.filters=[]
+        self.add()
+        self.base_filter=self.filters[0]
+        self.base_filter.add()
+        self.parent_filter=self.base_filter.filters[0]
+        self.parent_filter.item1.setCurrentText('id')
+        self.parent_filter.item2.setCurrentText('=')
+        self.parent_filter.item3.setText('parent')
+        self.parent_filter.activate_box.setChecked(True)
+        self.base_filter.add()
+        self.project_filter=self.base_filter.filters[1]
+        self.project_filter.item1.setCurrentText('project')
+        self.project_filter.item2.setCurrentText('=')
+        self.project_filter.item3.setText(SQLDatabase.get_project())
+        self.project_filter.activate_box.setChecked(True)
+        self.base_filter.activate_box.setChecked(True)
+        
     
     def show_widget(self, state):
         if isinstance(state, bool):
@@ -489,14 +515,24 @@ class MasterFilterWidget(QGroupBox):
                     queries.append(query)
                     for placeholder_item in placeholder:
                         placeholders.append(placeholder_item)
-        query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
-        .format(fields=sql.SQL(' OR ').join(queries),
-                offset=sql.Composed([sql.SQL(" OFFSET "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" ROWS ")]),
-                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" rows only")]))
+        if len(queries)>0:
+            query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
+            .format(fields=sql.SQL(' OR ').join(queries),
+                    offset=sql.Composed([sql.SQL(" OFFSET "),
+                                         sql.Placeholder(),
+                                         sql.SQL(" ROWS ")]),
+                    firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
+                                         sql.Placeholder(),
+                                         sql.SQL(" rows only")]))
+        else:
+            query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE id=parent ORDER BY id DESC{offset}{firsts}")\
+            .format(fields=sql.SQL(' OR ').join(queries),
+                    offset=sql.Composed([sql.SQL(" OFFSET "),
+                                         sql.Placeholder(),
+                                         sql.SQL(" ROWS ")]),
+                    firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
+                                         sql.Placeholder(),
+                                         sql.SQL(" rows only")]))
         return query, placeholders
 
 class FilterWidget(QGroupBox):
@@ -1268,7 +1304,8 @@ class TreeWidget(QTreeWidget):
             new_size=N_ROW_DEFAULT
             offset=0
         else:
-            new_size = self.window().spinbox_widget.current_value
+            new_size = self.window().spinbox_widget.value()
+            print(new_size)
             offset = (self.window().page_number_spinbox.current_value-1)*new_size
         self.clear()
         database=SQLDatabase()
@@ -1297,6 +1334,7 @@ class TreeWidget(QTreeWidget):
                                      sql.Placeholder(),
                                      sql.SQL(" rows only")])), [offset, new_size]
         hierarchy = database.get_all_hierarchy(query=query, placeholders=placeholders)
+        print([query, placeholders, len(hierarchy)])
         if len(hierarchy)>0:
             for curve_id, childs, name, date, sample in hierarchy[0]:
                 childs=json.loads(childs)

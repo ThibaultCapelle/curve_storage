@@ -12,11 +12,13 @@ from PyQt5.QtGui import QTextCharFormat, QPalette
 from setuptools import distutils
 
 DATABASE_NAME='postgres'
-USER='postgres'
-DATABASE_HOST=r'quarpi.qopt.nbi.dk'
+USER='postgres_user'
+DATABASE_HOST=r'bohrpi.forsk.unicph.domain'
 PORT='5432'
 ROOT=os.path.expanduser('~')
-
+PASSWORD=''
+DATA_LOCATION=''
+PROJECT=''
 
 @contextmanager
 def transaction(conn):
@@ -229,9 +231,40 @@ class CopyDatabaseWidget(QWidget):
     
 class setConfigWidget(QWidget):
 
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Database Config')
+        if os.path.exists(os.path.join(ROOT, 'database_config.json')):
+            params=SQLDatabase.get_config()
+            if 'database_host' in params.keys():
+                DATABASE_HOST=params['database_host']
+            else:
+                DATABASE_HOST=r'bohrpi.forsk.unicph.domain'
+            if 'user' in params.keys():
+                USER=params['user']
+            else:
+                USER='postgres_user'
+            if 'port' in params.keys():
+                PORT=params['port']
+            else:
+                PORT='5432'
+            if 'database_name' in params.keys():
+                DATABASE_NAME=params['database_name']
+            else:
+                DATABASE_NAME='postgres'
+            if 'password' in params.keys():
+                PASSWORD=params['password']
+            else:
+                PASSWORD=''
+            if 'data_location' in params.keys():
+                DATA_LOCATION=params['data_location']
+            else:
+                DATA_LOCATION=''
+            if 'project' in params.keys():
+                PROJECT=params['project']
+            else:
+                PROJECT=''
         self.layout=QVBoxLayout(self)
         self.setLayout(self.layout)
         self.layout.addWidget(QLabel('host'))
@@ -247,17 +280,20 @@ class setConfigWidget(QWidget):
         self.database=QLineEdit(DATABASE_NAME)
         self.layout.addWidget(self.database)
         self.layout.addWidget(QLabel('source password'))
-        self.password=QLineEdit()
+        self.password=QLineEdit(PASSWORD)
         self.password.setEchoMode(QLineEdit.Password)
         self.layout.addWidget(self.password)
         self.layout.addWidget(QLabel('set data path'))
-        self.datapath=QLineEdit()
+        self.datapath=QLineEdit(DATA_LOCATION)
         self.select_datapath=QPushButton('Browse')
         self.select_datapath_layout=QHBoxLayout()
         self.select_datapath_layout.addWidget(self.datapath)
         self.select_datapath_layout.addWidget(self.select_datapath)
         self.select_datapath.clicked.connect(self.browse_datapath)
         self.layout.addLayout(self.select_datapath_layout)
+        self.layout.addWidget(QLabel('default project'))
+        self.project=QLineEdit(PROJECT)
+        self.layout.addWidget(self.project)
         self.accept=QPushButton('Confirm')
         self.layout.addWidget(self.accept)
         self.accept.clicked.connect(self.confirm)
@@ -274,7 +310,8 @@ class setConfigWidget(QWidget):
                       'database_name':self.database.text(),
                       'user':self.user.text(),
                       'password':self.password.text(),
-                      'port':self.port.text()})
+                      'port':self.port.text(),
+                      'project':self.project.text()})
             json.dump(res, f)
         self.close()
      
@@ -294,9 +331,26 @@ class SQLDatabase():
     
     @staticmethod
     def get_config():
+        if not os.path.exists(os.path.join(ROOT, 'database_config.json')):
+            SQLDatabase.set_config()
         with open(os.path.join(ROOT, 'database_config.json'), 'r') as f:
             return json.load(f)
     
+    @staticmethod
+    def get_project():
+        params=SQLDatabase.get_config()
+        if 'project' in params.keys():
+            return params['project']
+        else:
+            return PROJECT
+    
+    @staticmethod
+    def set_project(val):
+        params=SQLDatabase.get_config()
+        params['project']=val
+        with open(os.path.join(ROOT, 'database_config.json'), 'w') as f:
+            json.dump(params, f)
+            
     @staticmethod
     def create_local_copy():
         app = QtCore.QCoreApplication.instance()
@@ -874,8 +928,9 @@ class Curve:
                 self.name=""
             if 'project' in kwargs:
                 self.project=kwargs.pop('project')
+                SQLDatabase.set_project(self.project)
             else:
-                self.project=""
+                self.project=SQLDatabase.get_project()
             if 'sample' in kwargs:
                 self.sample=kwargs.pop('sample')
             else:
@@ -927,8 +982,9 @@ class Curve:
                 self.name=""
             if 'project' in kwargs:
                 self.project=kwargs.pop('project')
+                SQLDatabase.set_project(self.project)
             else:
-                self.project=""
+                self.project=SQLDatabase.get_project()
             if 'sample' in kwargs:
                 self.sample=kwargs.pop('sample')
             else:
@@ -1035,16 +1091,11 @@ class Curve:
 
     def delete(self):
         self.database.delete_entry(self.id)
-
-class Test(QWidget):
-    
-    def __init__(self):
-        super().__init__()
         
 if __name__=='__main__':
     
-    db=SQLDatabase()
-    db.create_local_copy()
+    SQLDatabase.set_config()
+    
 
 
 
