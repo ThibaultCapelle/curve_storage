@@ -46,11 +46,11 @@ class WindowWidget(QWidget):
         self.layout_top = QHBoxLayout()
         self.layout_bottom = QHBoxLayout()
         self.plot_widget = PlotWidget()
-        self.add_filters = QCheckBox('add_filters')
+        #self.add_filters = QCheckBox('add_filters')
         self.show_filters = QCheckBox('Show filters')
-        self.show_filters.hide()
+        #self.show_filters.hide()
         self.filter_widget = MasterFilterWidget(self)
-        
+        self.show_filters.setChecked(True)
         self.layout_show_first = QGridLayout()
         self.layout_page_number = QHBoxLayout()
         self.layout_global.addWidget(self.filter_widget)
@@ -60,10 +60,10 @@ class WindowWidget(QWidget):
         self.layout_left.addLayout(self.layout_show_first)
         self.layout_left.addLayout(self.layout_page_number)
         self.spinbox_widget = SpinBoxWidget()
+        self.spinbox_widget.setValue(N_ROW_DEFAULT)
         self.page_number_spinbox = PageNumberWidget()
         
-        self.tree_widget = TreeWidget()
-        self.plot_options = plotOptions(self.tree_widget)
+        
         self.param_widget = ParamWidget(self.layout)
         self.layout_right.addWidget(self.param_widget)
         self.show_first_label = QLabel('show first')
@@ -80,13 +80,18 @@ class WindowWidget(QWidget):
                                          1, 3)
         self.layout_show_first.addWidget(self.show_first_label, 1, 0)
         self.layout_show_first.addWidget(self.spinbox_widget, 1, 1)
-        self.layout_left.addWidget(self.tree_widget)
-        self.layout_show_first.addWidget(self.add_filters, 1, 2)
-        self.layout_show_first.addWidget(self.show_filters, 1, 3)
-        self.layout_show_first.addWidget(self.compute_button, 1, 4)
+        
+        #self.layout_show_first.addWidget(self.add_filters, 1, 2)
+        self.layout_show_first.addWidget(self.show_filters, 1, 2)
+        self.layout_show_first.addWidget(self.compute_button, 1, 3)
         self.layout_center.addLayout(self.layout_top)
-        self.layout_top.addWidget(self.plot_options)
+        
         self.layout_center.addWidget(self.plot_widget)
+        
+        self.tree_widget = TreeWidget(self)
+        self.layout_left.addWidget(self.tree_widget)
+        self.plot_options = plotOptions(self.tree_widget)
+        self.layout_top.addWidget(self.plot_options)
         self.directory_button = DirectoryButton(self.tree_widget)
         self.comment=Comment(self.tree_widget)
         self.layout_center.addWidget(self.comment)
@@ -110,7 +115,7 @@ class WindowWidget(QWidget):
         self.compute_button.clicked.connect(self.tree_widget.compute)
         self.row_changed.connect(self.plot_widget.plot)
         self.changing_tree=False
-        self.spinbox_widget.setValue(20)
+        
         self.setLayout(self.layout_global)
         self.setGeometry(QRect(0, 0, 1000, 600))
         self.setMaximumHeight(600)
@@ -123,6 +128,7 @@ class WindowWidget(QWidget):
                                        'yscale':1,
                                        'xlabel':'Time (s)',
                                        'ylabel':'Value (a.u.)'})
+        self.show_filters.setChecked(False)
     
     def update_project(self):
         SQLDatabase.set_project(self.current_project_widget.text())
@@ -412,7 +418,7 @@ class MasterFilterWidget(QGroupBox):
         super().__init__(parent=window)
         self.parent=window
         self.hide()
-        self.parent.add_filters.stateChanged.connect(self.set_visible)
+        #self.parent.add_filters.stateChanged.connect(self.set_visible)
         self.parent.show_filters.stateChanged.connect(self.show_widget)
         self.global_layout=QVBoxLayout()
         self.setLayout(self.global_layout)
@@ -453,20 +459,7 @@ class MasterFilterWidget(QGroupBox):
             self.hide()
         else:
             pass
-    
-    def set_visible(self, state):
-        if isinstance(state, bool):
-            pass
-        elif state==QtCore.Qt.Checked:
-            self.parent.show_filters.show()
-            self.parent.show_filters.setCheckState(QtCore.Qt.Checked)
-            self.show()
-        elif state==QtCore.Qt.Unchecked:
-            self.parent.show_filters.hide()
-            self.hide()
-        else:
-            pass
-    
+
     def update_icon(self):
         if len(self.filters)==0:
             self.add_button.setIcon(QtGui.QIcon(os.path.join(self.folder,
@@ -510,7 +503,7 @@ class MasterFilterWidget(QGroupBox):
                     for placeholder_item in placeholder:
                         placeholders.append(placeholder_item)
         if len(queries)>0:
-            query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
+            query = sql.SQL("SELECT id, childs, name, date, sample, project FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
             .format(fields=sql.SQL(' OR ').join(queries),
                     offset=sql.Composed([sql.SQL(" OFFSET "),
                                          sql.Placeholder(),
@@ -519,7 +512,7 @@ class MasterFilterWidget(QGroupBox):
                                          sql.Placeholder(),
                                          sql.SQL(" rows only")]))
         else:
-            query = sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE id=parent ORDER BY id DESC{offset}{firsts}")\
+            query = sql.SQL("SELECT id, childs, name, date, sample, project FROM data ORDER BY id DESC{offset}{firsts}")\
             .format(fields=sql.SQL(' OR ').join(queries),
                     offset=sql.Composed([sql.SQL(" OFFSET "),
                                          sql.Placeholder(),
@@ -610,7 +603,7 @@ class FilterWidget(QGroupBox):
             return False
     
     def get_query(self):
-        filters=[Filter("id","=","parent")]
+        filters=[]
         for f in self.filters:
             if f.activate_box.isChecked():
                 res=f.get_query()
@@ -944,7 +937,7 @@ class QTreeContextMenu(QMenu):
         self.tree_widget=self.item.treeWidget()
         #self.move()
         self.item_position=self.tree_widget.visualItemRect(self.item)
-        self.window_position=self.tree_widget.window().geometry()
+        self.window_position=self.tree_widget.window.geometry()
         self.tree_position=self.tree_widget.geometry()
         #self.header_position=self.item.treeWidget().header().geometry()
         self.setGeometry(self.item_position.
@@ -985,7 +978,7 @@ class QTreeContextMenu(QMenu):
         self.tree_widget.compute()
     
     def plot(self):
-        self.subplot_window=PlotWindow(self.tree_widget.window().plot_options)
+        self.subplot_window=PlotWindow(self.tree_widget.window.plot_options)
         self.selected_items=self.tree_widget.selectedItems()
         selection=self.selected_items
         for item in selection:
@@ -1266,19 +1259,21 @@ class ParamWidget(QTableWidget):
 
 class TreeWidget(QTreeWidget):
     
-    def __init__(self):
+    def __init__(self, window):
         super().__init__()
+        self.window=window
         self.fit_function=None
         self.active_ID=None
-        self.setColumnCount(4)
+        self.setColumnCount(5)
         self.length = np.min([SQLDatabase().get_n_keys(), N_ROW_DEFAULT])
-        self.setHeaderLabels(['Id', 'Name', 'Date', 'Sample'])
+        self.setHeaderLabels(['Id', 'Name', 'Date', 'Sample', 'Project'])
         for i in range(3):
             self.setColumnWidth(i,50)
         self.setColumnWidth(3,10)
+        self.setColumnWidth(4,10)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.currentItemChanged.connect(self.current_item_changed)
-        self.compute(first_use=True)
+        self.compute()
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.contextMenu=None
         self.customContextMenuRequested.connect(self.RightClickMenu)
@@ -1294,52 +1289,27 @@ class TreeWidget(QTreeWidget):
             self.active_ID = int(item.data(0,0))
         else:
             self.active_ID=None
-        self.window().row_changed.emit()
+        self.window.row_changed.emit()
     
-    def compute(self, first_use=False):
-        if first_use:
-            new_size=N_ROW_DEFAULT
-            offset=0
-        else:
-            new_size = self.window().spinbox_widget.value()
-            print(new_size)
-            offset = (self.window().page_number_spinbox.current_value-1)*new_size
+    def compute(self):
+        new_size = self.window.spinbox_widget.value()
+        offset = (self.window.page_number_spinbox.current_value-1)*new_size
         self.clear()
         database=SQLDatabase()
-        if first_use:
-            filters=[Filter("id","=","parent")]
-            query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
-        .format(fields=sql.SQL(' AND ').join(filters),
-                offset=sql.Composed([sql.SQL(" OFFSET "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" ROWS")]),
-                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" rows only")])), [offset,new_size]
-        elif self.window().add_filters.isChecked() and self.window().filter_widget.at_least_one_check:
-            query, placeholders=self.window().filter_widget.get_query()
-            placeholders.append(offset)
-            placeholders.append(new_size)
-        else:
-            filters=[Filter("id","=","parent")]
-            query, placeholders=sql.SQL("SELECT id, childs, name, date, sample FROM data WHERE {fields} ORDER BY id DESC{offset}{firsts}")\
-        .format(fields=sql.SQL(' AND ').join(filters),
-                offset=sql.Composed([sql.SQL(" OFFSET "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" ROWS")]),
-                firsts=sql.Composed([sql.SQL(" FETCH FIRST "),
-                                     sql.Placeholder(),
-                                     sql.SQL(" rows only")])), [offset, new_size]
+        query, placeholders=self.window.filter_widget.get_query()
+        placeholders.append(offset)
+        placeholders.append(new_size)
+        
         hierarchy = database.get_all_hierarchy(query=query, placeholders=placeholders)
-        print([query, placeholders, len(hierarchy)])
         if len(hierarchy)>0:
-            for curve_id, childs, name, date, sample in hierarchy[0]:
+            for curve_id, childs, name, date, sample, project in hierarchy[0]:
                 childs=json.loads(childs)
                 item=QTreeWidgetItem()
                 item.setData(0,0,curve_id)
                 item.setData(2,0,time.strftime("%Y/%m/%d %H:%M:%S",time.localtime(float(date))))
                 item.setData(1,0, name) 
                 item.setData(3,0, sample)
+                item.setData(4,0, project)
                 if curve_id==self.active_ID:
                     self.setCurrentItem(item)
                 self.addTopLevelItem(item)
