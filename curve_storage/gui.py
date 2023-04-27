@@ -146,12 +146,12 @@ class LegendItem(QHBoxLayout):
         self.text = QLabel('id: {:}'.format(self.curve_id))
         self.addWidget(self.text)
         self.text.setAutoFillBackground(True) # This is important!!
-        color  = QtGui.QColor(color)#QColor(233, 10, 150)
-        alpha  = 255
-        values = "{r}, {g}, {b}, {a}".format(r = color.red(),
-                                             g = color.green(),
-                                             b = color.blue(),
-                                             a = alpha
+        self.color  = QtGui.QColor(color)#QColor(233, 10, 150)
+        self.alpha  = 255
+        values = "{r}, {g}, {b}, {a}".format(r = self.color.red(),
+                                             g = self.color.green(),
+                                             b = self.color.blue(),
+                                             a = self.alpha
                                              )
         self.text.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
         self.show_tick=QCheckBox('')
@@ -207,6 +207,70 @@ class LegendWidget(QWidget):
                 item[1].show()
             else:
                 item[1].hide()
+                
+class PlotWindowContextMenu(QMenu):
+    
+    def __init__(self, parent, point, legend):
+        super().__init__(parent)
+        self.legend=legend
+        self.plot_action=self.addAction('plot')
+        self.plot_action.triggered.connect(self.plot)
+        
+        self.view_all_action=self.addAction('view all')
+        self.view_all_action.triggered.connect(self.view_all)
+        self.setFixedSize(self.sizeHint())
+        self.setGeometry(parent.geometry().
+                         translated(point))
+        '''self.window_position.
+                         translated(point)
+                         .translated(self.window.param_widget.geometry().topLeft()))'''
+        self.setVisible(True)
+        self.show()
+    
+    def plot(self):
+        items=self.parent().plot_widget.getPlotItem()
+        window=self.parent().parent.tree_widget.window
+        options=window.plot_figure_options_button.get_values()
+        plt.figure()
+        #plt.title('id : {:}'.format(current_id))
+        plt.xlabel(options.pop('xlabel'))
+        plt.ylabel(options.pop('ylabel'))
+        for chan in self.legend.chans:
+            legend_item, data=chan
+            color=legend_item.color
+            alpha=legend_item.alpha
+            if legend_item.show_tick.isChecked():
+                
+        #for i, item in enumerate(items.items):
+                rect=data.viewRect()
+                l, b, r, t = (rect.left(), rect.bottom(), 
+                                          rect.right(), rect.top())
+                
+                x, y = data.getData()
+                
+                x*=float(options['xscale'])
+                y*=float(options['yscale'])
+                xmin, xmax=(np.min([l,r])*float(options['xscale']),
+                            np.max([l,r])*float(options['xscale']))
+                ymin, ymax=(np.min([b,t])*float(options['yscale']),
+                            np.max([b,t])*float(options['yscale']))
+                plt.plot(x,
+                         y,
+                         options['marker'],
+                         markersize=options['markersize'],
+                         linewidth=options['linewidth'],
+                         color=color.name())#options['color'])
+                plt.xlim([xmin, xmax])
+                plt.ylim([ymin, ymax])
+            self.selected_items=self.parent().parent.tree_widget.window.tree_widget.selectedItems()
+            curve_ids=[item.data(0,0) for item in self.selected_items]
+            curve=Curve(curve_ids[0])
+            plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
+
+    
+    def view_all(self):
+        self.parent().plot_widget.getPlotItem().enableAutoRange(enable=True)
+        self.parent().plot_widget.getPlotItem().enableAutoRange(enable=False)
         
 class PlotWindow(QWidget):
     
@@ -221,8 +285,9 @@ class PlotWindow(QWidget):
               '#bcbd22',
               '#17becf']
     
-    def __init__(self, plot_options):
+    def __init__(self, plot_options, parent):
         super().__init__()
+        self.parent=parent
         self.plot_options=plot_options
         self.layout_global = QHBoxLayout()
         self.plot_widget=pg.PlotWidget()
@@ -232,6 +297,13 @@ class PlotWindow(QWidget):
         self.setLayout(self.layout_global)
         self.show()
         self.color_index=-1
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.contextMenu=None
+        self.customContextMenuRequested.connect(self.RightClickMenu)
+            
+    def RightClickMenu(self, point):
+        print(point)
+        self.contextMenu=PlotWindowContextMenu(self, point, self.legend)
     
     def add_curve(self, item):
         self.color_index+=1
@@ -979,7 +1051,7 @@ class QTreeContextMenu(QMenu):
         self.tree_widget.compute()
     
     def plot(self):
-        self.subplot_window=PlotWindow(self.tree_widget.window.plot_options)
+        self.subplot_window=PlotWindow(self.tree_widget.window.plot_options, self)
         self.selected_items=self.tree_widget.selectedItems()
         selection=self.selected_items
         for item in selection:
