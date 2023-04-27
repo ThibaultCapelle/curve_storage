@@ -11,7 +11,7 @@ QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem,
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
 QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
 QCalendarWidget, QRadioButton, QColorDialog, QFrame)
-from PyQt5.QtCore import QRect, QPoint, QSize
+from PyQt5.QtCore import QRect, QPoint, QSize, Signal
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import sys, time, os, subprocess
@@ -81,7 +81,6 @@ class WindowWidget(QWidget):
         self.layout_show_first.addWidget(self.show_first_label, 1, 0)
         self.layout_show_first.addWidget(self.spinbox_widget, 1, 1)
         
-        #self.layout_show_first.addWidget(self.add_filters, 1, 2)
         self.layout_show_first.addWidget(self.show_filters, 1, 2)
         self.layout_show_first.addWidget(self.compute_button, 1, 3)
         self.layout_center.addLayout(self.layout_top)
@@ -159,7 +158,14 @@ class LegendItem(QHBoxLayout):
         self.addWidget(self.show_tick)
         self.addWidget(self.text)
         self.show_tick.stateChanged.connect(self.widget.update)
-    
+        self.plot_options_button=PlotFigureOptionButton(self,
+                    elements=dict({'marker':[QComboBox,'-'],
+                           'linewidth':[QLineEdit,'2'],
+                           'markersize':[QLineEdit,'1'],
+                           'color':[ColorPlotOption, color]}))
+        self.addWidget(self.plot_options_button)
+        self.plot_options_button.optionsHaveChanged.connect(self.widget.update)
+        
     def update(self):
         text=''
         if self.widget.config_id_tick.isChecked():
@@ -169,6 +175,14 @@ class LegendItem(QHBoxLayout):
         if self.widget.config_time_tick.isChecked():
             text+='time: {:}'.format(self.date)
         self.text.setText(text)
+        self.color  = QtGui.QColor(self.plot_options_button.get_values()['color'])#QColor(233, 10, 150)
+        self.alpha  = 255
+        values = "{r}, {g}, {b}, {a}".format(r = self.color.red(),
+                                             g = self.color.green(),
+                                             b = self.color.blue(),
+                                             a = self.alpha
+                                             )
+        self.text.setStyleSheet("QLabel { background-color: rgba("+values+"); }")
         
 
 class LegendWidget(QWidget):
@@ -207,6 +221,7 @@ class LegendWidget(QWidget):
                 item[1].show()
             else:
                 item[1].hide()
+            item[1].setPen(pg.mkPen(item[0].plot_options_button.get_values()['color']))
                 
 class PlotWindowContextMenu(QMenu):
     
@@ -237,6 +252,7 @@ class PlotWindowContextMenu(QMenu):
         plt.ylabel(options.pop('ylabel'))
         for chan in self.legend.chans:
             legend_item, data=chan
+            item_options=legend_item.plot_options_button.get_values()
             color=legend_item.color
             alpha=legend_item.alpha
             if legend_item.show_tick.isChecked():
@@ -256,12 +272,14 @@ class PlotWindowContextMenu(QMenu):
                             np.max([b,t])*float(options['yscale']))
                 plt.plot(x,
                          y,
-                         options['marker'],
-                         markersize=options['markersize'],
-                         linewidth=options['linewidth'],
-                         color=color.name())#options['color'])
+                         item_options['marker'],
+                         markersize=item_options['markersize'],
+                         linewidth=item_options['linewidth'],
+                         color=item_options['color'],
+                         label=legend_item.text.text())#options['color'])
                 plt.xlim([xmin, xmax])
                 plt.ylim([ymin, ymax])
+            plt.legend()
             self.selected_items=self.parent().parent.tree_widget.window.tree_widget.selectedItems()
             curve_ids=[item.data(0,0) for item in self.selected_items]
             curve=Curve(curve_ids[0])
@@ -302,7 +320,6 @@ class PlotWindow(QWidget):
         self.customContextMenuRequested.connect(self.RightClickMenu)
             
     def RightClickMenu(self, point):
-        print(point)
         self.contextMenu=PlotWindowContextMenu(self, point, self.legend)
     
     def add_curve(self, item):
@@ -793,6 +810,7 @@ class PlotFigureButton(QPushButton):
                      markersize=options['markersize'],
                      linewidth=options['linewidth'],
                      color=options['color'])
+            print(options['color'])
             plt.xlim([xmin, xmax])
             plt.ylim([ymin, ymax])
             plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
@@ -831,18 +849,20 @@ class ColorPlotOption(QLabel):
         
 class PlotFigureOptionButton(QPushButton):
     
-    def __init__(self, parent):
-        super().__init__()
-        self.parent=parent
-        self.setText('Plot Figure options')
-        self.elements=dict({'marker':[QComboBox,'-'],
+    optionsHaveChanged = Signal()
+    
+    def __init__(self, parent, elements=dict({'marker':[QComboBox,'-'],
                            'linewidth':[QLineEdit,'2'],
                            'markersize':[QLineEdit,'1'],
                            'xscale':[QLineEdit,'1'],
                            'yscale':[QLineEdit,'1'],
                            'xlabel':[QLineEdit,'Time (s)'],
                            'ylabel':[QLineEdit,'Value (a.u.)'],
-                           'color':[ColorPlotOption,'#921515']})
+                           'color':[ColorPlotOption,'#921515']})):
+        super().__init__()
+        self.parent=parent
+        self.setText('Plot Figure options')
+        self.elements=elements
         self.widgets=dict().fromkeys(self.elements.keys())
         self.marker_dict=dict({'.':0,
                                '-':1})
@@ -859,8 +879,10 @@ class PlotFigureOptionButton(QPushButton):
             if key=='marker':
                 self.widgets[key].addItems(['.', '-'])
         self.set_default_values()
-        self.confirm_button=QPushButton('confirm')
+        
         N=len(self.elements.keys())
+        
+        self.confirm_button=QPushButton('confirm')
         self.layout.addWidget(self.confirm_button, N, 0)
         self.confirm_button.clicked.connect(self.confirm)
         self.option_window.show()
@@ -872,11 +894,14 @@ class PlotFigureOptionButton(QPushButton):
             elif val[0]==QComboBox:
                 self.elements[key][1]=self.widgets[key].currentText()
         self.option_window.close()
+        self.optionsHaveChanged.emit()
     
     def set_default_values(self):
-        marker_index=self.marker_dict[self.elements['marker'][1]]
-        self.widgets['marker'].setCurrentIndex(marker_index)
-        self.widgets['color'].set_color(self.elements['color'][1])
+        if 'marker' in self.elements.keys():
+            marker_index=self.marker_dict[self.elements['marker'][1]]
+            self.widgets['marker'].setCurrentIndex(marker_index)
+        if 'color' in self.elements.keys():
+            self.widgets['color'].set_color(self.elements['color'][1])
         for key, val in self.elements.items():
             if val[0]== QLineEdit:
                 self.widgets[key].setText(val[1])
