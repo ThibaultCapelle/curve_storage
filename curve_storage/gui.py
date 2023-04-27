@@ -158,11 +158,17 @@ class LegendItem(QHBoxLayout):
         self.addWidget(self.show_tick)
         self.addWidget(self.text)
         self.show_tick.stateChanged.connect(self.widget.update)
+        
         self.plot_options_button=PlotFigureOptionButton(self,
                     elements=dict({'marker':[QComboBox,'-'],
                            'linewidth':[QLineEdit,'2'],
                            'markersize':[QLineEdit,'1'],
-                           'color':[ColorPlotOption, color]}))
+                           'color':[ColorPlotOption, color]}),
+                    text='config')
+        folder=os.path.split(inspect.getfile(Curve))[0]
+        self.plot_options_button.setIcon((QtGui.QIcon(os.path.join(folder,
+                                                            'pictures',
+                                                            'gear.png'))))
         self.addWidget(self.plot_options_button)
         self.plot_options_button.optionsHaveChanged.connect(self.widget.update)
         
@@ -203,6 +209,17 @@ class LegendWidget(QWidget):
         self.config_boxes.addWidget(self.config_name_tick)
         self.config_time_tick=QCheckBox('time')
         self.config_boxes.addWidget(self.config_time_tick)
+        self.general_plot_options=PlotFigureOptionButton(self,
+                           elements=dict({
+                           'xscale':[QLineEdit,'1'],
+                           'yscale':[QLineEdit,'1'],
+                           'xlabel':[QLineEdit,'Time (s)'],
+                           'ylabel':[QLineEdit,'Value (a.u.)']}))
+        folder=os.path.split(inspect.getfile(Curve))[0]
+        self.general_plot_options.setIcon((QtGui.QIcon(os.path.join(folder,
+                                                            'pictures',
+                                                            'gear.png'))))
+        self.config_boxes.addWidget(self.general_plot_options)
         self.setLayout(self.layout)
         self.chans=[]
         self.config_id_tick.stateChanged.connect(self.update)
@@ -245,7 +262,7 @@ class PlotWindowContextMenu(QMenu):
     def plot(self):
         items=self.parent().plot_widget.getPlotItem()
         window=self.parent().parent.tree_widget.window
-        options=window.plot_figure_options_button.get_values()
+        options=self.parent().legend.general_plot_options.get_values()
         plt.figure()
         #plt.title('id : {:}'.format(current_id))
         plt.xlabel(options.pop('xlabel'))
@@ -847,7 +864,7 @@ class ColorPlotOption(QLabel):
         self.set_color(color.name())
         self.parent.elements['color'][1]=color.name()
         
-class PlotFigureOptionButton(QPushButton):
+class PlotFigureOptionButton(QToolButton):
     
     optionsHaveChanged = Signal()
     
@@ -858,10 +875,11 @@ class PlotFigureOptionButton(QPushButton):
                            'yscale':[QLineEdit,'1'],
                            'xlabel':[QLineEdit,'Time (s)'],
                            'ylabel':[QLineEdit,'Value (a.u.)'],
-                           'color':[ColorPlotOption,'#921515']})):
+                           'color':[ColorPlotOption,'#921515']}),
+                 text='Plot Figure options'):
         super().__init__()
         self.parent=parent
-        self.setText('Plot Figure options')
+        self.setText(text)
         self.elements=elements
         self.widgets=dict().fromkeys(self.elements.keys())
         self.marker_dict=dict({'.':0,
