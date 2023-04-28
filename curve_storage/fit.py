@@ -115,3 +115,20 @@ class Fit(FitBase):
         x0_guess=x[np.nanargmin(y)]
         dx_guess=(np.max(x)-np.min(x))/10
         return (offset_guess, x0_guess, height_guess, dx_guess)
+
+    @staticmethod
+    def reflection_optical_Fano(x, params):
+        Fit.reflection_optical_Fano.keys= ['offset', 'x0',
+                              'height', 'dx', 'q']
+        offset, x0, height, dx, q=params
+        # remember np.pi*dx is Gamma_m/2
+        return offset + height*(1-q**2-q/dx*(x-x0))*(1 + (x-x0)**2/dx**2)**-1
+
+    @staticmethod
+    def reflection_optical_Fano_guess(x, y):
+        offset_guess=0.5*(np.mean(y[:10])+np.mean(y[-10:]))
+        height_guess=np.nanmin(y)-offset_guess
+        x0_guess=x[np.nanargmin(y)]
+        dx_guess=(np.max(x)-np.min(x))/10
+        q=0
+        return (offset_guess, x0_guess, height_guess, dx_guess, q)
