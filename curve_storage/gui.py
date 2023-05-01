@@ -11,7 +11,7 @@ QLineEdit, QTextEdit, QTableWidget, QSpinBox, QTableWidgetItem,
 QAbstractItemView, QCheckBox, QTreeWidget, QTreeWidgetItem, QMenu,
 QPushButton, QComboBox, QInputDialog, QGroupBox, QToolButton,
 QCalendarWidget, QRadioButton, QColorDialog, QFrame)
-from PyQt5.QtCore import QRect, QPoint, QSize, Signal
+from PyQt5.QtCore import QRect, QPoint, QSize
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import sys, time, os, subprocess
@@ -866,7 +866,7 @@ class ColorPlotOption(QLabel):
         
 class PlotFigureOptionButton(QToolButton):
     
-    optionsHaveChanged = Signal()
+    optionsHaveChanged = QtCore.Signal()
     
     def __init__(self, parent, elements=dict({'marker':[QComboBox,'-'],
                            'linewidth':[QLineEdit,'2'],
