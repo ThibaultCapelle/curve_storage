@@ -28,3 +28,4 @@ debug_database.py
 postgresql_sandbox.py
 
 build/*
+*.egg-info
