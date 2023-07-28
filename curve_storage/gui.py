@@ -801,6 +801,7 @@ class PlotFigureButton(QPushButton):
         self.clicked.connect(self.action)
     
     def action(self):
+        print('this is clicked !!!!')
         items=self.plotwidget.getPlotItem()
         current_id=self.treewidget.active_item.data(0,0)
         curve=Curve(current_id)
@@ -810,19 +811,25 @@ class PlotFigureButton(QPushButton):
                                       rect.right(), rect.top())
             
             x, y = item.getData()
+            
             options=self.window().plot_figure_options_button.get_values()
             plt.figure()
             plt.title('id : {:}'.format(current_id))
             plt.xlabel(options.pop('xlabel'))
             plt.ylabel(options.pop('ylabel'))
-            x*=float(options['xscale'])
-            y*=float(options['yscale'])
+            #x*=float(options['xscale'])
+            #y*=float(options['yscale'])
+            print(x)
+            print(y)
+            print([l,r,b,t])
             xmin, xmax=(np.min([l,r])*float(options['xscale']),
                         np.max([l,r])*float(options['xscale']))
             ymin, ymax=(np.min([b,t])*float(options['yscale']),
                         np.max([b,t])*float(options['yscale']))
-            plt.plot(x,
-                     y,
+            print([xmin, xmax])
+            print([ymin, ymax])
+            plt.plot(x*float(options['xscale']),
+                     y*float(options['yscale']),
                      options.pop('marker'),
                      markersize=options['markersize'],
                      linewidth=options['linewidth'],
