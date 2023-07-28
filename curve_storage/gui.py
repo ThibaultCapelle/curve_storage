@@ -348,23 +348,26 @@ class PlotWindow(QWidget):
         
         date = item.data(2,0)
         x,y,params=PlotWidget.get_data_and_params_from_date_and_id(date, curve_id)
-        y_r, y_i, y_abs, y_angle=(np.real(y), np.imag(y), np.abs(y), np.angle(y))
         
         state=self.plot_options.currentText()
         if state=='dB':
-            x=x[y_abs!=0]
-            y_abs=y_abs[y_abs!=0]
-            data=self.plot_widget.getPlotItem().plot(x, 20*np.log10(y_abs), pen=pen)
+            x_abs=x[np.abs(y)!=0]
+            y_abs=y[np.abs(y)!=0]
+            data=self.plot_widget.getPlotItem().plot(x_abs, 10*np.log10(np.abs(y_abs)), pen=pen)
         elif state=='Real':
-            data=self.plot_widget.getPlotItem().plot(x, y_r, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, np.real(y), pen=pen)
         elif state=='Imaginary':
-            data=self.plot_widget.getPlotItem().plot(x, y_i, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, np.imag(y), pen=pen)
         elif state=='Smith':
-            data=self.plot_widget.getPlotItem().plot(y_r, y_i, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(np.real(y), np.imag(y), pen=pen)
         elif state=='Abs':
-            data=self.plot_widget.getPlotItem().plot(x, y_abs, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, np.abs(y), pen=pen)
         elif state=='Angle':
-            data=self.plot_widget.getPlotItem().plot(x, y_angle, pen=pen)
+            data=self.plot_widget.getPlotItem().plot(x, np.angle(y), pen=pen)
+        elif state=='FFT':
+            data=self.plot_widget.getPlotItem().plot(np.fft.fftfreq(len(x), x[1]-x[0]),
+                                    np.abs(np.fft.fft(y)**2/50/len(x)*(x[1]-x[0])), 
+                                    pen=pen)
         self.plot_widget.getPlotItem().enableAutoRange(enable=False)
         
         self.legend.add_curve(item, color, data)
@@ -742,7 +745,7 @@ class plotOptions(QComboBox):
     def __init__(self, treewidget):
         super().__init__()
         self.treewidget=treewidget
-        self.addItems(['Real', 'Imaginary', 'dB', 'Smith', 'Abs', 'Angle'])
+        self.addItems(['Real', 'Imaginary', 'dB', 'Smith', 'Abs', 'Angle', 'FFT'])
         self.currentTextChanged.connect(self.update)
     
     def update(self, new_text):
@@ -807,7 +810,6 @@ class PlotFigureButton(QPushButton):
         self.clicked.connect(self.action)
     
     def action(self):
-        print('this is clicked !!!!')
         items=self.plotwidget.getPlotItem()
         current_id=self.treewidget.active_item.data(0,0)
         curve=Curve(current_id)
@@ -815,9 +817,7 @@ class PlotFigureButton(QPushButton):
             rect=item.viewRect()
             l, b, r, t = (rect.left(), rect.bottom(), 
                                       rect.right(), rect.top())
-            
             x, y = item.getData()
-            
             options=self.window().plot_figure_options_button.get_values()
             plt.figure()
             plt.title('id : {:}'.format(current_id))
@@ -825,22 +825,16 @@ class PlotFigureButton(QPushButton):
             plt.ylabel(options.pop('ylabel'))
             #x*=float(options['xscale'])
             #y*=float(options['yscale'])
-            print(x)
-            print(y)
-            print([l,r,b,t])
             xmin, xmax=(np.min([l,r])*float(options['xscale']),
                         np.max([l,r])*float(options['xscale']))
             ymin, ymax=(np.min([b,t])*float(options['yscale']),
                         np.max([b,t])*float(options['yscale']))
-            print([xmin, xmax])
-            print([ymin, ymax])
             plt.plot(x*float(options['xscale']),
                      y*float(options['yscale']),
                      options.pop('marker'),
                      markersize=options['markersize'],
                      linewidth=options['linewidth'],
                      color=options['color'])
-            print(options['color'])
             plt.xlim([xmin, xmax])
             plt.ylim([ymin, ymax])
             plt.savefig(os.path.join(curve.get_or_create_dir(), 'display.png'), dpi=100)
@@ -955,17 +949,22 @@ class FitButton(QPushButton):
     def action(self):
         items=self.plotwidget.getPlotItem()
         current_id=self.treewidget.active_item.data(0,0)
+        state=self.plotwidget.window().plot_options.currentText()
         curve=Curve(current_id)
+        if state=='FFT':
+            x, y=(np.fft.fftfreq(len(curve.x), curve.x[1]-curve.x[0]),
+                            np.abs(np.fft.fft(curve.y))**2/50/len(curve.x)*(curve.x[1]-curve.x[0]))
+        else:
+            x, y=np.real(curve.x), curve.y
         for i, item in enumerate(items.items):
             rect=item.viewRect()
             l, r= (rect.left(), rect.right())
             xmin, xmax=np.min([l,r]), np.max([l,r])
-            cond=np.logical_and(np.real(curve.x)<xmax,
-                                np.real(curve.x)>xmin)
-        y=curve.y[cond]
-        x=np.real(curve.x[cond])
+            cond=np.logical_and(np.real(x)<xmax,
+                                np.real(x)>xmin)
+        y=y[cond]
+        x=np.real(x[cond])
         self.fit_function=self.treewidget.fit_function
-        state=self.plotwidget.window().plot_options.currentText()
         if state=='dB':
             self.fitparams, self.cov_x=Fit.fit(x,y, 
                                    function=self.fit_function,
@@ -1013,6 +1012,10 @@ class FitButton(QPushButton):
         elif state=='Angle':
             self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
                 .plot(self.x_fit, np.angle(self.y_fit),
+                      pen=pg.mkPen('b'))
+        elif state=='FFT':
+            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                .plot(self.x_fit, np.real(self.y_fit),
                       pen=pg.mkPen('b'))
 
 class SaveFitButton(QPushButton):
@@ -1562,24 +1565,26 @@ class PlotWidget(pg.PlotWidget):
             date = item.data(2,0)
             folder=PlotWidget.get_folder_from_date(date)
             x,y,params=PlotWidget.get_data_and_params_from_date_and_id(date, curve_id)
-            y_r, y_i, y_abs, y_angle=(np.real(y), np.imag(y), np.abs(y), np.angle(y))
             self.getPlotItem().clear()
             
             state=self.window().plot_options.currentText()
             if state=='dB':
-                x=x[y_abs!=0]
-                y_abs=y_abs[y_abs!=0]
-                self.getPlotItem().plot(x, 20*np.log10(y_abs))
+                x_abs=x[np.abs(y)!=0]
+                y_abs=y[np.abs(y)!=0]
+                self.getPlotItem().plot(x_abs, 10*np.log10(np.abs(y_abs)))
             elif state=='Real':
-                self.getPlotItem().plot(x, y_r)
+                self.getPlotItem().plot(x, np.real(y))
             elif state=='Imaginary':
-                self.getPlotItem().plot(x, y_i)
+                self.getPlotItem().plot(x, np.imag(y))
             elif state=='Smith':
-                self.getPlotItem().plot(y_r, y_i)
+                self.getPlotItem().plot(np.real(y), np.imag(y))
             elif state=='Abs':
-                self.getPlotItem().plot(x, y_abs)
+                self.getPlotItem().plot(x, np.abs(y))
             elif state=='Angle':
-                self.getPlotItem().plot(x, y_angle)
+                self.getPlotItem().plot(x, np.angle(y))
+            elif state=='FFT':
+                self.getPlotItem().plot(np.fft.fftfreq(len(x), x[1]-x[0]),
+                                        np.abs(np.fft.fft(y)**2/50/len(x)*(x[1]-x[0])))
             self.getPlotItem().enableAutoRange(enable=False)
             if 'comment' in params.keys():
                 comment=params.pop('comment')
