@@ -410,9 +410,13 @@ class NewFilterWidget(QGroupBox):
         self.global_layout.addWidget(self.activate_box, 0, 4)
         self.item1.currentTextChanged.connect(self.column_changed)
         self.item3.textChanged.connect(self.text_changed)
+        self.suggestion_list.currentIndexChanged.connect(self.selection_changed)
     
     def set_permanent(self):
         self.remove_button.hide()
+    
+    def selection_changed(self, text):
+        self.item3.setText(self.suggestion_list.currentText())
     
     def text_changed(self, text):
         if self.item1.currentText()=='project':
@@ -421,11 +425,13 @@ class NewFilterWidget(QGroupBox):
             db.cursor.execute('''SELECT DISTINCT project FROM data WHERE position(%s in project)>0;''',
                               (text,))
             res=[k[0] for k in db.cursor.fetchall()]
+            self.suggestion_list.currentIndexChanged.disconnect()
             self.suggestion_list.show()
             self.suggestion_list.clear()
             self.suggestion_list.addItem('')
             for item in res:
                 self.suggestion_list.addItem(item)
+            self.suggestion_list.currentIndexChanged.connect(self.selection_changed)
         elif self.item1.currentText()=='sample':
             db=SQLDatabase()
             db.get_cursor()
