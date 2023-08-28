@@ -90,7 +90,7 @@ class Fit(FitBase):
                               'height', 'dx']
         offset, x0, height, dx=params
         # remember np.pi*dx is Gamma_m/2
-        return offset + height* (1 + (x-x0)**2/dx**2)**-1
+        return offset + np.abs(height)* (1 + (x-x0)**2/dx**2)**-1
 
     @staticmethod
     def lorentzian_guess(x, y):
@@ -132,3 +132,27 @@ class Fit(FitBase):
         dx_guess=(np.max(x)-np.min(x))/10
         q=0
         return (offset_guess, x0_guess, height_guess, dx_guess, q)
+    
+    @staticmethod
+    def PDH(x, params):
+        Fit.PDH.keys= ['offset', 'x0', 'Omega',
+                       'height', 'r', 'FSR']
+        offset, x0, Omega, height, r, FSR=params
+        # remember np.pi*dx is Gamma_m/2
+        def F(omega, FSR, r):
+            return r*(np.exp(1j*omega/FSR)-1)/(1-r**2*np.exp(1j*omega/FSR))
+        return offset + height*(F(x, FSR, r)*np.conjugate(F(x+Omega, FSR, r))
+                                -np.conjugate(F(x, FSR, r))*F(x-Omega, FSR, r))
+        
+    @staticmethod
+    def PDH_guess(x, y):
+        offset_guess=0.5*(np.mean(y[:10])+np.mean(y[-10:]))
+        height_guess=(np.nanmax(y)-np.nanmin(y))/2
+        x0_guess=x[np.nanargmin(y)]
+        FSR_guess=600*(np.max(x)-np.min(x))
+        r_guess=0.99999
+        Omega_guess=(np.max(x)-np.min(x))/4
+        return (offset_guess, x0_guess, Omega_guess,
+                height_guess, r_guess, FSR_guess)
+    
+    
