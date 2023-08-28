@@ -316,13 +316,24 @@ class setConfigWidget(QWidget):
         self.close()
      
 class SQLDatabase():
+    """
+    A class to represent the interface to the database.
+    """
     
     first_instance = True
     instances = []
     
     @staticmethod
     def set_config():
+        '''
+        The static method to set the configuration, i.e. where is the
+        database, how to connect to it and where are the data, as well as
+        the default project. Opens a GUI to set those fields. If those fields
+        have already been set previously, those set parameters are already
+        pre-entered.
         
+        For the detailed implementation, see setConfigWidget.
+        '''
         app = QtCore.QCoreApplication.instance()
         app.setQuitOnLastWindowClosed(True)
         widget=setConfigWidget()
@@ -331,6 +342,16 @@ class SQLDatabase():
     
     @staticmethod
     def get_config():
+        '''
+        A static method to get the current configuration, previously set
+        by set_config()
+        Returns
+        -------
+        DICTIONNARY
+            A dictionary containing the current configuration of the database
+            interface.
+
+        '''
         if not os.path.exists(os.path.join(ROOT, 'database_config.json')):
             SQLDatabase.set_config()
         with open(os.path.join(ROOT, 'database_config.json'), 'r') as f:
@@ -338,6 +359,15 @@ class SQLDatabase():
     
     @staticmethod
     def get_project():
+        '''
+        A static method to get the current project, previously set
+        by set_config()
+        Returns
+        -------
+        STRING
+            The default project
+
+        '''
         params=SQLDatabase.get_config()
         if 'project' in params.keys():
             return params['project']
@@ -346,16 +376,36 @@ class SQLDatabase():
     
     @staticmethod
     def set_project(val):
+        '''
+        A static method to set the current project
+        Returns
+        -------
+        STRING
+            The current project
+
+        '''
         params=SQLDatabase.get_config()
         params['project']=val
         with open(os.path.join(ROOT, 'database_config.json'), 'w') as f:
             json.dump(params, f)
             
     @staticmethod
-    def create_local_copy():
+    def create_local_copy():    
+        '''
+        A static method to create a local copy of part of the data+database
+        in order to work offline or make backup for example. 
+        This copied database should be only read, not written, as
+        it is hard to reseynchronize afterwards.
+        It opens a GUI where you should set the source and the target,
+        oth for the data and the database, as well as the time period you want
+        to transfer.
+        For the detailed implementation, see CopyDatabaseWidget.
+        Returns
+        -------
+        None
+
+        '''
         app = QtCore.QCoreApplication.instance()
-        if app is None:
-           app = QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(True)
         widget=CopyDatabaseWidget()
         widget.show()
@@ -391,6 +441,20 @@ class SQLDatabase():
     
     
     def get_all_data_in_period(self, t_ini, t_end):
+        '''
+        A method to get all the metadatas in the database between two
+        timestamps
+        
+        Parameters:
+                    t_ini (float): the beggining timestamp
+                    t_end (float): the end timestamp
+                    
+        Returns
+        -------
+        STRING
+            The current project
+
+        '''
         self.get_cursor()
         self.cursor.execute('''SELECT id, name, date, childs, parent, project, sample FROM data WHERE date>%s AND date<%s;''',
                             (t_ini, t_end,))
