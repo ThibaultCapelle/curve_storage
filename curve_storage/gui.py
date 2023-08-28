@@ -965,58 +965,64 @@ class FitButton(QPushButton):
         y=y[cond]
         x=np.real(x[cond])
         self.fit_function=self.treewidget.fit_function
-        if state=='dB':
-            self.fitparams, self.cov_x=Fit.fit(x,y, 
-                                   function=self.fit_function,
-                                   extract_covariance=True,
-                                   to_minimize='log')
-        else:
-            self.fitparams, self.cov_x=Fit.fit(x,y, 
-                                   function=self.fit_function,
-                                   extract_covariance=True,
-                                   to_minimize='linear')
-        if hasattr(getattr(Fit, self.fit_function), 'keys'):
-            self.keys=getattr(getattr(Fit, self.fit_function), 'keys')
-        self.x_fit=np.linspace(np.min(x), np.max(x), 1000)
-        self.y_fit=getattr(Fit, self.fit_function)(self.x_fit,
-                     self.fitparams)
-        fit_curve=self.plotwidget.fit_curve
-        if fit_curve is not None:
-            fit_curve.clear()
+        state=self.plotwidget.window().plot_options.currentText()
+        try:
+            if state=='dB':
+                self.fitparams, self.cov_x=Fit.fit(x,y, 
+                                       function=self.fit_function,
+                                       extract_covariance=True,
+                                       to_minimize='log')
+            elif state=='Abs':
+                self.fitparams, self.cov_x=Fit.fit(x,np.abs(y), 
+                                       function=self.fit_function,
+                                       extract_covariance=True,
+                                       to_minimize='log')
+            else:
+                self.fitparams, self.cov_x=Fit.fit(x,y, 
+                                       function=self.fit_function,
+                                       extract_covariance=True,
+                                       to_minimize='linear')
+            if hasattr(getattr(Fit, self.fit_function), 'keys'):
+                self.keys=getattr(getattr(Fit, self.fit_function), 'keys')
+            self.x_fit=np.linspace(np.min(x), np.max(x), 1000)
+            self.y_fit=getattr(Fit, self.fit_function)(self.x_fit,
+                         self.fitparams)
+            fit_curve=self.plotwidget.fit_curve
+            if fit_curve is not None:
+                fit_curve.clear()
             
-            
-        
-        
-        if state=='dB':
-            x_fit=self.x_fit[np.abs(self.y_fit)!=0]
-            y_fit=self.y_fit[np.abs(self.y_fit)!=0]
-            self.plotwidget.fit_curve=self.plotwidget.getPlotItem().plot(x_fit,
-                                                      20*np.log10(y_fit),
-                                                      pen=pg.mkPen('b'))
-        elif state=='Real':
-            self.plotwidget.fit_curve=self.plotwidget.\
-                getPlotItem().plot(self.x_fit, np.real(self.y_fit),
-                            pen=pg.mkPen('b'))
-        elif state=='Imaginary':
-            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
-                    .plot(self.x_fit, np.imag(self.y_fit),
+            if state=='dB':
+                x_fit=self.x_fit[np.abs(self.y_fit)!=0]
+                y_fit=self.y_fit[np.abs(self.y_fit)!=0]
+                self.plotwidget.fit_curve=self.plotwidget.getPlotItem().plot(x_fit,
+                                                          20*np.log10(y_fit),
+                                                          pen=pg.mkPen('b'))
+            elif state=='Real':
+                self.plotwidget.fit_curve=self.plotwidget.\
+                    getPlotItem().plot(self.x_fit, np.real(self.y_fit),
+                                pen=pg.mkPen('b'))
+            elif state=='Imaginary':
+                self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                        .plot(self.x_fit, np.imag(self.y_fit),
+                              pen=pg.mkPen('b'))
+            elif state=='Smith':
+                self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                    .plot(np.real(self.y_fit), np.imag(self.y_fit),
                           pen=pg.mkPen('b'))
-        elif state=='Smith':
-            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
-                .plot(np.real(self.y_fit), np.imag(self.y_fit),
-                      pen=pg.mkPen('b'))
-        elif state=='Abs':
-            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
-                .plot(self.x_fit, np.abs(self.y_fit),
-                      pen=pg.mkPen('b'))
-        elif state=='Angle':
-            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
-                .plot(self.x_fit, np.angle(self.y_fit),
-                      pen=pg.mkPen('b'))
-        elif state=='FFT':
-            self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
-                .plot(self.x_fit, np.real(self.y_fit),
-                      pen=pg.mkPen('b'))
+            elif state=='Abs':
+                self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                    .plot(self.x_fit, np.abs(self.y_fit),
+                          pen=pg.mkPen('b'))
+            elif state=='Angle':
+                self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                    .plot(self.x_fit, np.angle(self.y_fit),
+                          pen=pg.mkPen('b'))
+            elif state=='FFT':
+                self.plotwidget.fit_curve=self.plotwidget.getPlotItem()\
+                    .plot(self.x_fit, np.real(self.y_fit),
+                          pen=pg.mkPen('b'))
+        except TypeError:
+            pass
 
 class SaveFitButton(QPushButton):
     
