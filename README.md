@@ -27,14 +27,39 @@ SQLDatabase.set_config()
 ```
 
 ### Basic use
-To create a cuvre, simply enter:
+
+#### From the API
+To create a curve, simply enter:
 ```python
 from curve_storage.database import Curve
 curve=Curve(x_data, y_data, name='example', project='example_project',
  sample='example_sample', extra_param_name='example_value')
- ```
+```
+ 
 Each curve has two numpy arrays, assumed to be complex, which represents usually the x and y values to store, as well as a dictionnary with various parameters, here the extra_param_name, but it can be a lot of them. On top of it, it has special params linked to the database and which therefore can be searched with filters: a unique id, a name, a sample, a project and a date. It also has a dedicated folder that can be used, as well as a hierarchical system: each curve can have a parent and multiple childs.
 
+To access a curve, for example with the id 201105: 
+```python
+from curve_storage.database import Curve 
+
+curve=Curve(201105)
+```
+
+then you can access its data with:
+
+
+```python
+x,y= curve.x, curve.y #returns x and y data as complex numpy arrays.
+params=curve.params #returns the parameters of the curve as a dictionnary
+comment=curve.comment #returns the comment
+childs, name, sample, project, parent=curve.childs, curve.name, curve.sample, curve.project #returns the childs, name, sample, project, parent of the curve
+curve.get_or_create_dir() #returns the directory of the curve. If it does not exist yet, create it
+curve.move(parent) #move the Curve curve as child of the other Curve parent
+curve.name="hello" #make a change in an instance
+curve.save() #synchronize the updates of the instance with the data and database
+```
+
+#### From the GUI
 The curves can be searched and addressed easily with the GUI, than you can call with:
 ```python
 from curve_storage import gui
