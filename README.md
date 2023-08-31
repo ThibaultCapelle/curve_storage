@@ -29,7 +29,7 @@ This opens another window:
 
 <p>
     <a >
-        <img src="./doc/pictures/setup_config.jpg">
+        <img src="./doc/pictures/set_config.png">
     </a>
 </p>
 
@@ -111,7 +111,7 @@ from there you can activate or delete all the filters and creating new one. The 
 
 A right click on the param panel (3) opens a context menu that you can use to add or delete a parameter.
 
-### Advance Use
+### Advanced Use
 
 #### Create Local Copy
 
