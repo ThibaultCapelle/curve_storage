@@ -46,4 +46,33 @@ from curve_storage import gui
     </a>
 </p>
 
-on the left (1) side you can see the curves that match the query, as well as some options to edit this query. The selected curve data are dispayed in the center (2) window, in the fomat chosen with the top panel. The right (3) panel displays the parameters of the selected curve, and the bottom (4) panel shows some additional options: - the comment associated ith each curve, that can be edited and saved, the fitting options, that use the x data selected y the data viewer, and the default plot figure options, which are used to save a default plot of the viewed data.
+on the left (1) side you can see the curves that match the query, as well as some options to edit this query. The selected curve data are dispayed in the center (2) window, in the fomat chosen with the top panel. The right (3) panel displays the parameters of the selected curve, and the bottom (4) panel shows some additional options: - the comment associated ith each curve, that can be edited and saved, the fitting options, that use the x data selected y the data viewer, and the default plot figure options, which are used to save a default plot of the viewed data. You can also create (if it has not been created yet) or open (if it has been created previously) the curve directory.
+
+If you right click on the curve tree viewer (1) you have an additional menu:
+ <p>
+    <a >
+        <img src="./doc/pictures/GUI_menu1.jpg">
+    </a>
+</p>
+
+Here you can delete the curve (it will delete the database entry recursively with its childs, remove the curve has a child of its parent if it is the child of a curve, delete the directory if it exists, and delete the data), move it to become the child of another curve, edit it to change its name, sample or project, or plot it. For all this options you can select several curves to apply it to all curves. If you select plot, it will sho a new plot window.
+
+<p>
+    <a >
+        <img src="./doc/pictures/plot_figure_options.jpg">
+    </a>
+</p>
+
+Here you can print the name, and/or time and/or id of each curve. You can change their print options, hide some of the curves, and if you right click you can choose to plot it, which creates a nice matplotlib figure saved in the directory of the curves.
+
+If you click on "show filters" a new panel opens on the left:
+
+<p>
+    <a >
+        <img src="./doc/pictures/filters_edit.jpg">
+    </a>
+</p>
+
+from there you can activate or delete all the filters and creating new one. The first default filter is "id=parent", which means that it shows only the top curves of the hierarchical system, unless you expand each of the curves. The second one is "project=the_default_project", which can also be edited separately in the tree viewer (1) top options. You can make filters about name, date, sample, id, and project, and you can relate them to the query with the right succession of "AND" and "OR" booleans. The deactivated filters or groups of filters are ignored.
+
+A right click on the param panel (3) opens a context menu that you can use to add or delete a parameter.
