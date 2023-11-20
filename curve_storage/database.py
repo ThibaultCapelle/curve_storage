@@ -1108,17 +1108,18 @@ class Curve:
     
     def move(self, curve_parent):
         assert curve_parent.id not in self.childs
-        if self.parent!=self.id:
-            parent=Curve(self.parent)
-            try:
-                parent.childs.remove(self.id)
-                parent.save()
-            except ValueError:
-                pass
-        self.parent = curve_parent.id
-        curve_parent.childs.append(self.id)
-        self.save()
-        curve_parent.save()
+        if self.id not in curve_parent.childs:
+            if self.parent!=self.id:
+                parent=Curve(self.parent)
+                try:
+                    parent.childs.remove(self.id)
+                    parent.save()
+                except ValueError:
+                    pass
+            self.parent = curve_parent.id
+            curve_parent.childs.append(self.id)
+            self.save()
+            curve_parent.save()
         
     def exist_directory(self):
         return str(self.id) in os.listdir(self.directory)
