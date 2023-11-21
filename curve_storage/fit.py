@@ -101,6 +101,23 @@ class Fit(FitBase):
         return (offset_guess, x0_guess, height_guess, dx_guess)
     
     @staticmethod
+    def lorentzian_db(x, params):
+        Fit.lorentzian_db.keys= ['offset', 'x0',
+                              'height', 'dx']
+        offset, x0, height, dx=params
+        # remember np.pi*dx is Gamma_m/2
+        return 10*np.log10(1000*np.abs(offset + np.abs(height)* (1 + (x-x0)**2/dx**2)**-1))
+
+    @staticmethod
+    def lorentzian_db_guess(x, y):
+        y=1e-3*10**(y/10)
+        offset_guess=0.5*(np.mean(y[:10])+np.mean(y[-10:]))
+        height_guess=np.nanmax(y)-offset_guess
+        x0_guess=x[np.nanargmax(y)]
+        dx_guess=(np.max(x)-np.min(x))/10
+        return (offset_guess, x0_guess, height_guess, dx_guess)
+    
+    @staticmethod
     def reflection_optical(x, params):
         Fit.reflection_optical.keys= ['offset', 'x0',
                               'height', 'dx']
