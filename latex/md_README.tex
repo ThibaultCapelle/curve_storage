@@ -1,0 +1,36 @@
+\chapter{Curve Storage\+: a database to store, find and save efficiently scientific datasets}
+\hypertarget{md_README}{}\label{md_README}\index{Curve Storage: a database to store, find and save efficiently scientific datasets@{Curve Storage: a database to store, find and save efficiently scientific datasets}}
+\label{md_README_autotoc_md0}%
+\Hypertarget{md_README_autotoc_md0}%
+ This is a small python library made to interact with a Post\+Gre\+SQL database server, used to store the metadatas of some curves that are stored somewhere. It comprises a GUI that allows easy visualisation, filtered search, fitting and deletion/editing of curves.\hypertarget{md_README_autotoc_md1}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_README_autotoc_md1}
+First you need a running Postgre\+SQL server. For a detailed description of how to install Postgre\+SQL and launch a server, see \href{https://www.postgresql.org/docs/current/admin.html}{\texttt{ https\+://www.\+postgresql.\+org/docs/current/admin.\+html}}
+
+After this, to install the library, open a command line after having installed git, then go to the repository you want to store it, then do\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{git\ clone\ http://gitea.qmpl.xyz/ThibaultCapelle/curve\_storage.git\ }
+\DoxyCodeLine{}
+\DoxyCodeLine{cd\ curve\_storage\ }
+\DoxyCodeLine{}
+\DoxyCodeLine{pip\ install\ psycopg2\ pyqtgraph==0.11.0\ }
+\DoxyCodeLine{}
+\DoxyCodeLine{pip\ install\ –e\ .\ }
+
+\end{DoxyCode}
+ Then open a python console, and type\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{from}\ \mbox{\hyperlink{namespacecurve__storage_1_1database}{curve\_storage.database}}\ \textcolor{keyword}{import}\ SQLDatabase\ }
+\DoxyCodeLine{}
+\DoxyCodeLine{SQLDatabase.set\_config()\ }
+
+\end{DoxyCode}
+\hypertarget{md_README_autotoc_md2}{}\doxysubsection{\texorpdfstring{Basic use}{Basic use}}\label{md_README_autotoc_md2}
+To create a cuvre, simply enter\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{from}\ \mbox{\hyperlink{namespacecurve__storage_1_1database}{curve\_storage.database}}\ \textcolor{keyword}{import}\ Curve}
+\DoxyCodeLine{curve=Curve(x\_data,\ y\_data,\ name=\textcolor{stringliteral}{'example'},\ project=\textcolor{stringliteral}{'example\_project'},}
+\DoxyCodeLine{\ sample=\textcolor{stringliteral}{'example\_sample'},\ extra\_param\_name=\textcolor{stringliteral}{'example\_value'})}
+
+\end{DoxyCode}
+ Each curve has two numpy arrays, assumed to be complex, which represents usually the x and y values to store, as well as a dictionnary with various parameters, here the extra\+\_\+param\+\_\+name, but it can be a lot of them. On top of it, it has special params linked to the database and which therefore can be searched with filters\+: a unique id, a name, a sample, a project and a date. It also has a dedicated folder that can be used, as well as a hierarchical system\+: each curve can have a parent and multiple childs. 
