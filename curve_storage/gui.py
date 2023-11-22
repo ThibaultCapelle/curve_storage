@@ -441,12 +441,13 @@ class NewFilterWidget(QGroupBox):
             db.cursor.execute('''SELECT DISTINCT sample FROM data WHERE position(%s in sample)>0;''',
                               (text,))
             res=[k[0] for k in db.cursor.fetchall()]
+            self.suggestion_list.currentIndexChanged.disconnect()
             self.suggestion_list.show()
             self.suggestion_list.clear()
             self.suggestion_list.addItem('')
             for item in res:
                 self.suggestion_list.addItem(item)
-            
+            self.suggestion_list.currentIndexChanged.connect(self.selection_changed)
         
     def column_changed(self, text):
         if text=='date':
