@@ -101,6 +101,27 @@ class Fit(FitBase):
         return (offset_guess, x0_guess, height_guess, dx_guess)
     
     @staticmethod
+    def lorentzian_complex(x, params):
+        Fit.lorentzian_complex.keys= ['offset_re',
+                                      'offset_im',
+                                      'x0',
+                              'height', 'phi', 'dx']
+        offset_re, offset_im, x0, height, phi, dx=params
+        # remember np.pi*dx is Gamma_m/2
+        return offset_re+1j*offset_im + np.abs(height)*np.exp(1j*phi)*\
+                    (1j*(x-x0)+0.5*np.abs(dx))**-1
+
+    @staticmethod
+    def lorentzian_complex_guess(x, y):
+        offset_guess=0.5*(np.mean(y[:10])+np.mean(y[-10:]))
+        centered_y=y-offset_guess
+        height_guess=np.nanmax(np.abs(centered_y))
+        x0_guess=x[np.nanargmax(np.abs(centered_y))]
+        dx_guess=(np.max(x)-np.min(x))/10
+        phi_guess=np.angle(centered_y[np.nanargmax(np.abs(centered_y))])
+        return (np.real(offset_guess), np.imag(offset_guess), x0_guess, height_guess, phi_guess, dx_guess)
+    
+    @staticmethod
     def lorentzian_db(x, params):
         Fit.lorentzian_db.keys= ['offset', 'x0',
                               'height', 'dx']
