@@ -621,7 +621,7 @@ class SQLDatabase():
     
     def extract_dictionary(self, res, obj):
         for key, val in obj.items():
-            if val=='NONE':
+            if isinstance(val, str) and val=='NONE':
                 res[key]=None
             elif isinstance(val, str) and val.startswith('{'):
                 res[key]=json.loads(val)

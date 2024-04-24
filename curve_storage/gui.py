@@ -983,8 +983,8 @@ class FitButton(QPushButton):
                                        function=self.fit_function,
                                        extract_covariance=True,
                                        to_minimize='linear')
-            if hasattr(getattr(Fit, self.fit_function), 'keys'):
-                self.keys=getattr(getattr(Fit, self.fit_function), 'keys')
+            if hasattr(Fit, self.fit_function+'_keys'):
+                self.keys=getattr(Fit, self.fit_function+'_keys')
             self.x_fit=np.linspace(np.min(x), np.max(x), 1000)
             self.y_fit=getattr(Fit, self.fit_function)(self.x_fit,
                          self.fitparams)

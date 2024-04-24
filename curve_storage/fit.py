@@ -11,6 +11,31 @@ import numpy as np
 
 class Fit(FitBase):
     
+    cavity_reflection_keys= ['x0', 'kappa_c_hz',
+                                 'kappa_hz', 'K', 'elec', 'phi', 'phi2']
+    lorentzian_triplets_keys= ['offset', 'x0_1',
+                                             'height_1', 'dx_1',
+                                             'x0_2',
+                                             'height_2', 'dx_2',
+                                             'x0_3',
+                                             'height_3', 'dx_3']
+    ringdown_keys= ['offset', 'slope',
+                                  'noise']
+    lorentzian_keys= ['offset', 'x0',
+                          'height', 'dx']
+    lorentzian_complex_keys= ['offset_re',
+                                  'offset_im',
+                                  'x0',
+                          'height', 'phi', 'dx']
+    lorentzian_db_keys= ['offset', 'x0',
+                          'height', 'dx']
+    PDH_keys= ['offset', 'x0', 'Omega',
+                   'height', 'r', 'FSR']
+    reflection_optical_Fano_keys= ['offset', 'x0',
+                          'height', 'dx', 'q']
+    reflection_optical_keys= ['offset', 'x0',
+                          'height', 'dx']
+    
     @staticmethod
     def cavity_reflection(x, params):
         '''Fit function for the MW cavity in reflection.'''
