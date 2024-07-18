@@ -8,5 +8,6 @@ setup(name='curve_storage',
       include_package_data=True,
       package_data={'curve_storage': ['pictures/*.png']},
       packages=['curve_storage'],
-	  package_dir={'curve_storage': 'curve_storage'}
+	  package_dir={'curve_storage': 'curve_storage'},
+      install_requires=['h5py <= 3.9.0']
      )

@@ -1643,10 +1643,11 @@ class PlotWidget(pg.PlotWidget):
     @staticmethod
     def extract_dictionary(res, obj):
         for key, val in obj.items():
-            if val=='NONE':
-                res[key]=None
-            elif isinstance(val, str) and val.startswith('{'):
-                res[key]=json.loads(val)
+            if isinstance(val, str):
+                if val=='NONE':
+                    res[key]=None
+                elif val.startswith('{'):
+                    res[key]=json.loads(val)
             else:
                 res[key]=val
         return res
