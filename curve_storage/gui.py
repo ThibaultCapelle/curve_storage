@@ -30,9 +30,9 @@ N_ROW_DEFAULT=20
 
 class WindowWidget(QWidget):
     
-    spinbox_changed = QtCore.Signal()
-    pageno_changed = QtCore.Signal()
-    row_changed = QtCore.Signal()
+    spinbox_changed = QtCore.pyqtSignal()
+    pageno_changed = QtCore.pyqtSignal()
+    row_changed = QtCore.pyqtSignal()
     
     
     
@@ -874,7 +874,7 @@ class ColorPlotOption(QLabel):
         
 class PlotFigureOptionButton(QToolButton):
     
-    optionsHaveChanged = QtCore.Signal()
+    optionsHaveChanged = QtCore.pyqtSignal()
     
     def __init__(self, parent, elements=dict({'marker':[QComboBox,'-'],
                            'linewidth':[QLineEdit,'2'],
