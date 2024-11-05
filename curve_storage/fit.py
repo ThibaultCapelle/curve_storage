@@ -115,7 +115,7 @@ class Fit(FitBase):
                               'height', 'dx']
         offset, x0, height, dx=params
         # remember np.pi*dx is Gamma_m/2
-        return offset + np.abs(height)* (1 + (x-x0)**2/dx**2)**-1
+        return np.abs(offset) + np.abs(height)* (1 + (x-x0)**2/dx**2)**-1
 
     @staticmethod
     def lorentzian_guess(x, y):
