@@ -407,6 +407,7 @@ class NewFilterWidget(QGroupBox):
         self.global_layout.addWidget(self.remove_button, 0, 3)
         self.remove_button.clicked.connect(self.remove)
         self.activate_box = QCheckBox('activate')
+        self.activate_box.setChecked(True)
         self.suggestion_list = QComboBox()
         self.global_layout.addWidget(self.suggestion_list, 1, 2)
         self.suggestion_list.hide()
@@ -545,7 +546,7 @@ class MasterFilterWidget(QGroupBox):
         self.add_button.clicked.connect(self.add)
         self.global_layout.addWidget(self.add_button)
         self.filters=[]
-        self.add()
+        self.add(first_time=True)
         self.base_filter=self.filters[0]
         self.base_filter.set_permanent()
         self.base_filter.add()
@@ -585,13 +586,30 @@ class MasterFilterWidget(QGroupBox):
                                                          'pictures',
                                                          'or.png')))
     
-    def add(self):
+    def add(self, first_time=False):
         new_filter=FilterWidget(self)
         self.global_layout.addWidget(new_filter)
         new_filter.resize(10,10)
         self.filters.append(new_filter)
         self.update_icon()
         self.show()
+        if not first_time:
+            new_filter.set_permanent()
+            new_filter.add()
+            parent_filter=new_filter.filters[0]
+            parent_filter.set_permanent()
+            parent_filter.item1.setCurrentText('id')
+            parent_filter.item2.setCurrentText('=')
+            parent_filter.item3.setText('parent')
+            parent_filter.activate_box.setChecked(True)
+            new_filter.add()
+            project_filter=new_filter.filters[1]
+            project_filter.set_permanent()
+            project_filter.item1.setCurrentText('project')
+            project_filter.item2.setCurrentText('=')
+            project_filter.item3.setText(SQLDatabase.get_project())
+            project_filter.activate_box.setChecked(True)
+            new_filter.activate_box.setChecked(True)
     
     def remove_filter(self, filt):
         self.global_layout.removeWidget(filt)
@@ -660,8 +678,17 @@ class FilterWidget(QGroupBox):
         self.toplayout.addWidget(self.remove_button)
         self.remove_button.clicked.connect(self.remove)
         self.activate_box = QCheckBox('activate')
+        self.activate_box.setChecked(True)
         self.toplayout.addWidget(self.activate_box)
         self.filters=[]
+        #self.add()
+        '''self.parent_filter=self.filters[0]
+        self.parent_filter.set_permanent()
+        self.parent_filter.item1.setCurrentText('id')
+        self.parent_filter.item2.setCurrentText('=')
+        self.parent_filter.item3.setText('parent')
+        self.parent_filter.activate_box.setChecked(True)'''
+        
     
     def set_permanent(self):
         self.remove_button.hide()
