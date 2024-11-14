@@ -872,7 +872,7 @@ class SQLDatabase():
     def update_entry(self, curve):
         assert self.exists(curve.id)
         if len(curve.childs)>0:
-            curve.childs=[int(i) for i in curve.childs]
+            curve.childs=[int(i) for i in curve.childs if self.exists(int(i))]
         with transaction(self.db):
             self.get_cursor()
             self.cursor.execute('''UPDATE data SET name=%s, childs=%s, parent=%s, project=%s, sample=%s WHERE id=%s;''',
