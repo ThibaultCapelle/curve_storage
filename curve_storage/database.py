@@ -436,7 +436,8 @@ class SQLDatabase():
                 self.db=connect(host=self.database_host,
                                  database=self.database_name,
                                  user=self.user,
-                                 password=self.password)
+                                 password=self.password,
+                                 port=self.port)
                 if not self.is_table_created():
                     self.create_table()
                 self.__class__.instances.append(self.db)
